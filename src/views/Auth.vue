@@ -5,8 +5,8 @@
       <div class="auth-panel">
         <div class="auth-container">
           <div class="auth-header">
-            <img src="/icons/logo.svg" alt="AKADEMEDYA" class="auth-logo" ><h2 class="auth-title">AKADEMEDYA</h2></img>
-            
+            <img src="/icons/logo.svg" alt="AKADEMEDYA" class="auth-logo" />
+            <h2 class="auth-title">AKADEMEDYA</h2>
           </div>
 
           <v-tabs v-model="currentTab" color="primary" class="auth-tabs" centered>
@@ -20,7 +20,6 @@
             </v-tab>
           </v-tabs>
 
-    
           <v-alert
             v-if="alert.show"
             :type="alert.type"
@@ -44,8 +43,9 @@
                       prepend-inner-icon="mdi-account"
                       variant="outlined"
                       :rules="[rules.required]"
-                      class="mb-4"
+                      class="mb-2"
                       hide-details="auto"
+                      density="compact"
                     />
 
                     <v-text-field
@@ -56,8 +56,9 @@
                       :append-inner-icon="showPassword.login ? 'mdi-eye' : 'mdi-eye-off'"
                       variant="outlined"
                       :rules="[rules.required]"
-                      class="mb-4"
+                      class="mb-3"
                       hide-details="auto"
+                      density="compact"
                       @click:append-inner="showPassword.login = !showPassword.login"
                     />
 
@@ -66,12 +67,12 @@
                       color="primary"
                       size="large"
                       block
-                      :loading="loading.login"
-                      :disabled="loading.login"
-                      class="mb-4"
+                      :loading="authStore.loading"
+                      :disabled="authStore.loading"
+                      class="mt-2"
                       elevation="2"
                     >
-                      Giriş Yap
+                      {{ authStore.loading ? 'Giriş yapılıyor...' : 'Giriş Yap' }}
                     </v-btn>
                   </v-form>
                 </v-card-text>
@@ -158,11 +159,11 @@
                       color="primary"
                       size="large"
                       block
-                      :loading="loading.register"
-                      :disabled="loading.register"
+                      :loading="authStore.loading"
+                      :disabled="authStore.loading"
                       elevation="2"
                     >
-                      Hesap Oluştur
+                      {{ authStore.loading ? 'Hesap oluşturuluyor...' : 'Hesap Oluştur' }}
                     </v-btn>
                   </v-form>
                 </v-card-text>
@@ -176,26 +177,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 // Router
 const router = useRouter()
+const route = useRoute()
+const authStore = useAuthStore()
 
 // Reactive Data
 const currentTab = ref('login')
-const showForgotPassword = ref(false)
-const forgotPasswordEmail = ref('')
 
 const showPassword = reactive({
   login: false,
   register: false,
   confirmPassword: false,
-})
-
-const loading = reactive({
-  login: false,
-  register: false,
 })
 
 const alert = reactive({
@@ -222,8 +219,8 @@ const registerData = reactive({
 const loginForm = ref()
 const registerForm = ref()
 
-// Validation Rules
-const rules = {
+// Computed validation rules
+const rules = computed(() => ({
   required: (value: string) => !!value || 'Bu alan zorunludur',
   email: (value: string) => {
     const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -236,15 +233,30 @@ const rules = {
     return true
   },
   passwordMatch: (value: string) => {
-    return value === registerData.password || 'Şifreler eşleşmiyor'
+    // Şifre tekrarı boşsa ve ana şifre de boşsa sorun yok
+    if (!value && !registerData.password) return true
+    // Şifre tekrarı boşsa ama ana şifre doluysa hata ver
+    if (!value && registerData.password) return 'Şifre tekrarı zorunludur'
+    // Ana şifre boşsa ama şifre tekrarı doluysa bekle
+    if (value && !registerData.password) return true
+    // İkisi de doluysa karşılaştır
+    if (value && registerData.password) {
+      return value === registerData.password || 'Şifreler eşleşmiyor'
+    }
+    return true
   },
-}
+}))
 
 // Methods
 const showAlert = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
   alert.type = type
   alert.message = message
   alert.show = true
+
+  // Auto hide after 5 seconds
+  setTimeout(() => {
+    alert.show = false
+  }, 5000)
 }
 
 const hideAlert = () => {
@@ -255,160 +267,142 @@ const handleLogin = async () => {
   const { valid } = await loginForm.value.validate()
   if (!valid) return
 
-  loading.login = true
   try {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    const response = await authStore.login({
+      userName: loginData.userName.trim(),
+      password: loginData.password,
+    })
 
-    showAlert('success', 'Giriş başarılı!')
+    if (response.success) {
+      showAlert('success', response.message || 'Giriş başarılı!')
 
-    // Redirect to dashboard
-    setTimeout(() => {
-      router.push('/dashboard')
-    }, 1000)
+      // Redirect logic
+      const redirectPath = (route.query.redirect as string) || '/dashboard'
+
+      setTimeout(() => {
+        router.push(redirectPath)
+      }, 1000)
+    } else {
+      showAlert('error', response.message || 'Giriş başarısız!')
+    }
   } catch (error: any) {
     console.error('Login error:', error)
-    showAlert('error', 'Giriş başarısız!')
-  } finally {
-    loading.login = false
+    showAlert('error', 'Giriş yapılırken bir hata oluştu')
   }
 }
 
 const handleRegister = async () => {
+  // Manual validation for password match
+  if (registerData.password !== registerData.confirmPassword) {
+    showAlert('error', 'Şifreler eşleşmiyor!')
+    return
+  }
+
   const { valid } = await registerForm.value.validate()
   if (!valid) return
 
-  loading.register = true
   try {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    showAlert('success', 'Kayıt başarılı! E-posta doğrulama linkini kontrol ediniz.')
-    currentTab.value = 'login'
-
-    // Clear form
-    Object.keys(registerData).forEach((key) => {
-      registerData[key as keyof typeof registerData] = ''
+    const response = await authStore.register({
+      firstName: registerData.firstName.trim(),
+      lastName: registerData.lastName.trim(),
+      email: registerData.email.trim().toLowerCase(),
+      userName: registerData.userName.trim(),
+      password: registerData.password,
     })
-    registerForm.value.reset()
+
+    if (response.success) {
+      showAlert(
+        'success',
+        response.message || 'Kayıt başarılı! E-posta doğrulama linkini kontrol ediniz.',
+      )
+
+      // Switch to login tab
+      currentTab.value = 'login'
+
+      // Clear form
+      Object.keys(registerData).forEach((key) => {
+        registerData[key as keyof typeof registerData] = ''
+      })
+      registerForm.value?.reset()
+    } else {
+      showAlert('error', response.message || 'Kayıt başarısız!')
+    }
   } catch (error: any) {
     console.error('Register error:', error)
-    showAlert('error', 'Kayıt başarısız!')
-  } finally {
-    loading.register = false
+    showAlert('error', 'Kayıt olurken bir hata oluştu')
   }
+}
+
+// Check if user is already authenticated
+if (authStore.isAuthenticated) {
+  const redirectPath = (route.query.redirect as string) || '/dashboard'
+  router.push(redirectPath)
 }
 </script>
 
 <style scoped>
+/* SCROLLBAR TAMAMEN KALDIRMA */
+
+/* Global scroll kaldırma */
+html,
+body {
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Vuetify app ayarları */
+.v-application {
+  overflow: hidden !important;
+}
+
+/* Tüm scrollbar'ları tamamen gizle */
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-track {
+  display: none !important;
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+  display: none !important;
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-corner {
+  display: none !important;
+  background: transparent !important;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: none !important;
+}
+
+/* IE/Edge */
+* {
+  -ms-overflow-style: none !important;
+}
+
 .auth-wrapper {
   display: flex;
-  min-height: 100vh;
+  width: 100vw;
+  height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-/* Branding Panel */
-.branding-panel {
-  flex: 1;
-  background: linear-gradient(135deg, rgba(0, 75, 133, 0.95) 0%, rgba(102, 126, 234, 0.95) 100%);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 3rem 2rem;
-  color: white;
-  position: relative;
-}
-
-.branding-panel::before {
-  content: '';
-  position: absolute;
+  overflow: hidden !important;
+  position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background-image:
-    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
-  pointer-events: none;
-}
-
-.branding-content {
-  max-width: 400px;
-  text-align: center;
-  z-index: 1;
-}
-
-.logo-container {
-  margin-bottom: 3rem;
-}
-
-.main-logo {
-  width: 120px;
-  height: 120px;
-  margin-bottom: 1.5rem;
-  filter: brightness(0) invert(1);
-  animation: float 6s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-.company-name {
-  font-size: 3rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  letter-spacing: 2px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.company-tagline {
-  font-size: 1.2rem;
-  opacity: 0.9;
-  margin-bottom: 0;
-  letter-spacing: 1px;
-}
-
-.features-list {
-  margin-bottom: 3rem;
-}
-
-.feature-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: 2rem;
-  text-align: left;
-}
-
-.feature-item .v-icon {
-  margin-right: 1rem;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 0.5rem;
-  border-radius: 50%;
-}
-
-.feature-text h3 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.feature-text p {
-  font-size: 0.9rem;
-  opacity: 0.8;
-  margin: 0;
-}
-
-.company-info {
-  opacity: 0.7;
-  font-size: 0.9rem;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
 }
 
 /* Auth Panel */
@@ -420,11 +414,23 @@ const handleRegister = async () => {
   padding: 2rem;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
+  overflow: hidden !important;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .auth-container {
   width: 100%;
   max-width: 450px;
+  max-height: 85vh;
+  overflow: hidden !important;
+  box-sizing: border-box;
+}
+
+/* Container için scrollbar tamamen kaldır */
+.auth-container::-webkit-scrollbar {
+  display: none !important;
 }
 
 .auth-header {
@@ -461,23 +467,23 @@ const handleRegister = async () => {
 }
 
 .auth-forms {
-  min-height: 400px;
+  min-height: 300px;
+  overflow: hidden !important;
 }
 
 .auth-card {
   background: transparent;
+  overflow: hidden !important;
 }
 
 /* Responsive Design */
 @media (max-width: 1024px) {
-  .branding-panel {
-    display: none;
-  }
-
   .auth-panel {
     flex: none;
-    width: 100%;
+    width: 100vw;
+    height: 100vh;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    overflow: hidden !important;
   }
 
   .auth-container {
@@ -486,25 +492,28 @@ const handleRegister = async () => {
     padding: 2rem;
     backdrop-filter: blur(10px);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    overflow: hidden !important;
   }
 }
 
 @media (max-width: 600px) {
   .auth-panel {
     padding: 1rem;
+    overflow: hidden !important;
   }
 
   .auth-container {
     padding: 1.5rem;
+    overflow: hidden !important;
   }
 
-  .company-name {
-    font-size: 2rem;
+  .auth-title {
+    font-size: 1.8rem;
   }
 
-  .main-logo {
-    width: 80px;
-    height: 80px;
+  .auth-logo {
+    width: 60px;
+    height: 60px;
   }
 }
 
@@ -518,21 +527,43 @@ const handleRegister = async () => {
   font-weight: 600;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
+/* Tüm elementler için scrollbar kaldırma */
+div,
+section,
+article,
+aside,
+nav,
+main,
+header,
+footer,
+.v-card,
+.v-card-text,
+.v-form,
+.v-tabs-window,
+.v-tabs-window-item {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
+div::-webkit-scrollbar,
+section::-webkit-scrollbar,
+article::-webkit-scrollbar,
+.v-card::-webkit-scrollbar,
+.v-card-text::-webkit-scrollbar,
+.v-form::-webkit-scrollbar,
+.v-tabs-window::-webkit-scrollbar,
+.v-tabs-window-item::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  background: transparent !important;
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
+/* Vuetify specific scrollbar kaldırma */
+.v-application--wrap {
+  overflow: hidden !important;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
+.v-main {
+  overflow: hidden !important;
 }
 </style>

@@ -1,13 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 
 const routes = [
   {
     path: '/',
-    redirect: () => {
-      const authStore = useAuthStore()
-      return authStore.isAuthenticated ? '/dashboard' : '/auth'
-    },
+    redirect: '/auth',
   },
   {
     path: '/auth',
@@ -50,7 +46,9 @@ const router = createRouter({
 })
 
 // Navigation Guards
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+  // Dynamically import auth store to avoid circular dependency
+  const { useAuthStore } = await import('@/stores/auth')
   const authStore = useAuthStore()
 
   // Sayfa başlığını güncelle
@@ -63,12 +61,26 @@ router.beforeEach((to, from, next) => {
     authStore.initializeAuth()
   }
 
+  // Token geçerliliğini kontrol et
+  if (authStore.isAuthenticated && !authStore.checkTokenValidity()) {
+    console.log('Token expired during navigation')
+    authStore.logout()
+  }
+
   const requiresAuth = to.meta.requiresAuth
   const requiresGuest = to.meta.requiresGuest
   const isAuthenticated = authStore.isAuthenticated
 
+  console.log('Navigation:', {
+    to: to.path,
+    requiresAuth,
+    requiresGuest,
+    isAuthenticated,
+  })
+
   if (requiresAuth && !isAuthenticated) {
     // Giriş gerekli ama kullanıcı giriş yapmamış
+    console.log('Redirecting to auth - authentication required')
     next({
       name: 'Auth',
       query: { redirect: to.fullPath },
@@ -76,6 +88,7 @@ router.beforeEach((to, from, next) => {
   } else if (requiresGuest && isAuthenticated) {
     // Misafir gerekli ama kullanıcı giriş yapmış
     const redirectPath = (to.query.redirect as string) || '/dashboard'
+    console.log('User already authenticated, redirecting to:', redirectPath)
     next(redirectPath)
   } else {
     next()
