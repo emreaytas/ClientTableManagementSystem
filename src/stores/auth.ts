@@ -23,13 +23,13 @@ interface LoginRequest {
   password: string
 }
 
-interface RegisterRequest {
+export interface RegisterRequest {
   firstName: string
   lastName: string
   email: string
   userName: string
   password: string
-  confirmPassword: string // Backend için gerekli
+  confirmPassword?: string
 }
 
 interface AuthResponse {
@@ -340,29 +340,41 @@ export const useAuthStore = defineStore('auth', () => {
     return true
   }
 
+  const resendEmailConfirmation = async (email: string): Promise<AuthResponse> => {
+    try {
+      const response = await axios.post<AuthResponse>(
+        `${API_BASE_URL}/auth/resend-email-confirmation`,
+        {
+          email,
+        },
+      )
+
+      return response.data
+    } catch (error: any) {
+      console.error('Resend email confirmation error:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || 'E-posta tekrar gönderme işlemi başarısız',
+      }
+    }
+  }
+
   // Initialize axios interceptors
   setupAxiosInterceptors(token.value)
 
   return {
-    // State
-    user,
-    token,
-    loading,
-
-    // Computed
+    user: readonly(user),
+    token: readonly(token),
+    loading: readonly(loading),
     isAuthenticated,
-    userName,
-    fullName,
-
-    // Actions
     login,
     register,
     logout,
     confirmEmail,
+    resendEmailConfirmation,
     forgotPassword,
     refreshUserData,
     initializeAuth,
-    checkTokenValidity,
     isTokenExpired,
   }
 })

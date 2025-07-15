@@ -221,29 +221,27 @@ const registerForm = ref()
 
 // Computed validation rules
 const rules = computed(() => ({
-  required: (value: string) => !!value || 'Bu alan zorunludur',
+  required: (value: string) => {
+    return !!value || 'Bu alan zorunludur'
+  },
   email: (value: string) => {
+    if (!value) return 'Bu alan zorunludur'
     const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return pattern.test(value) || 'Geçerli bir e-posta adresi giriniz'
   },
-  minLength: (value: string) => value.length >= 3 || 'En az 3 karakter olmalıdır',
+  minLength: (value: string) => {
+    if (!value) return 'Bu alan zorunludur'
+    return value.length >= 3 || 'En az 3 karakter olmalıdır'
+  },
   password: (value: string) => {
     if (!value) return 'Şifre zorunludur'
     if (value.length < 6) return 'Şifre en az 6 karakter olmalıdır'
     return true
   },
   passwordMatch: (value: string) => {
-    // Şifre tekrarı boşsa ve ana şifre de boşsa sorun yok
-    if (!value && !registerData.password) return true
-    // Şifre tekrarı boşsa ama ana şifre doluysa hata ver
-    if (!value && registerData.password) return 'Şifre tekrarı zorunludur'
-    // Ana şifre boşsa ama şifre tekrarı doluysa bekle
-    if (value && !registerData.password) return true
-    // İkisi de doluysa karşılaştır
-    if (value && registerData.password) {
-      return value === registerData.password || 'Şifreler eşleşmiyor'
-    }
-    return true
+    if (!value) return 'Şifre tekrarı zorunludur'
+    if (!registerData.password) return 'Önce şifrenizi girin'
+    return value === registerData.password || 'Şifreler eşleşmiyor'
   },
 }))
 
@@ -308,6 +306,7 @@ const handleRegister = async () => {
       email: registerData.email.trim().toLowerCase(),
       userName: registerData.userName.trim(),
       password: registerData.password,
+      confirmPassword: registerData.confirmPassword, // Bu satırı ekleyin
     })
 
     if (response.success) {
@@ -332,7 +331,6 @@ const handleRegister = async () => {
     showAlert('error', 'Kayıt olurken bir hata oluştu')
   }
 }
-
 // Check if user is already authenticated
 if (authStore.isAuthenticated) {
   const redirectPath = (route.query.redirect as string) || '/dashboard'

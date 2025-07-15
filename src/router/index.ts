@@ -15,6 +15,15 @@ const routes = [
     },
   },
   {
+    path: '/email-confirmed',
+    name: 'EmailConfirmed',
+    component: () => import('@/views/EmailConfirmation.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'E-posta Doğrulama',
+    },
+  },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('@/views/Dashboard.vue'),
