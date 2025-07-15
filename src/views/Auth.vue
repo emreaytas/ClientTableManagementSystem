@@ -384,11 +384,6 @@ body {
   scrollbar-width: none !important;
 }
 
-/* IE/Edge */
-* {
-  -ms-overflow-style: none !important;
-}
-
 .auth-wrapper {
   display: flex;
   width: 100vw;
