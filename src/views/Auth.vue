@@ -1,207 +1,186 @@
 <template>
-  <v-container fluid class="auth-container">
-    <v-row justify="center" align="center" class="fill-height">
-      <v-col cols="12" sm="8" md="6" lg="4" xl="3">
-        <v-card class="auth-card elevation-12" rounded="lg">
-          <!-- Logo ve Başlık -->
-          <v-card-title class="text-center pa-6">
-            <div class="logo-section">
-              <v-icon size="48" color="primary" class="mb-2"> mdi-table-large </v-icon>
-              <h1 class="text-h4 font-weight-bold primary--text">AKADEMEDYA</h1>
-              <p class="text-subtitle-1 text--secondary mt-2">Tablo Yönetim Sistemi</p>
-            </div>
-          </v-card-title>
+  <v-app>
+    <div class="auth-wrapper">
+      <!-- Right Panel - Auth Form -->
+      <div class="auth-panel">
+        <div class="auth-container">
+          <div class="auth-header">
+            <img src="/icons/logo.svg" alt="AKADEMEDYA" class="auth-logo" ><h2 class="auth-title">AKADEMEDYA</h2></img>
+            
+          </div>
 
-          <v-card-text class="px-6 pb-6">
-            <!-- Tab Buttons -->
-            <v-tabs
-              v-model="currentTab"
-              bg-color="grey-lighten-4"
-              color="primary"
-              grow
-              rounded="lg"
-              class="mb-6"
-            >
-              <v-tab value="login">
-                <v-icon left>mdi-login</v-icon>
-                Giriş Yap
-              </v-tab>
-              <v-tab value="register">
-                <v-icon left>mdi-account-plus</v-icon>
-                Kaydol
-              </v-tab>
-            </v-tabs>
+          <v-tabs v-model="currentTab" color="primary" class="auth-tabs" centered>
+            <v-tab value="login" class="tab-button">
+              <v-icon left>mdi-login</v-icon>
+              Giriş Yap
+            </v-tab>
+            <v-tab value="register" class="tab-button">
+              <v-icon left>mdi-account-plus</v-icon>
+              Kaydol
+            </v-tab>
+          </v-tabs>
 
-            <!-- Alert Messages -->
-            <v-alert
-              v-if="alert.show"
-              :type="alert.type"
-              variant="tonal"
-              class="mb-4"
-              closable
-              @click:close="hideAlert"
-            >
-              {{ alert.message }}
-            </v-alert>
+    
+          <v-alert
+            v-if="alert.show"
+            :type="alert.type"
+            variant="tonal"
+            class="mb-4"
+            closable
+            @click:close="hideAlert"
+          >
+            {{ alert.message }}
+          </v-alert>
 
-            <v-tabs-window v-model="currentTab">
-              <!-- Giriş Formu -->
-              <v-tabs-window-item value="login">
-                <v-form ref="loginForm" @submit.prevent="handleLogin">
-                  <v-text-field
-                    v-model="loginData.userName"
-                    label="Kullanıcı Adı"
-                    prepend-inner-icon="mdi-account"
-                    variant="outlined"
-                    :rules="[rules.required]"
-                    class="mb-3"
-                    autofocus
-                  ></v-text-field>
+          <v-tabs-window v-model="currentTab" class="auth-forms">
+            <!-- Login Form -->
+            <v-tabs-window-item value="login">
+              <v-card flat class="auth-card">
+                <v-card-text>
+                  <v-form ref="loginForm" @submit.prevent="handleLogin">
+                    <v-text-field
+                      v-model="loginData.userName"
+                      label="Kullanıcı Adı"
+                      prepend-inner-icon="mdi-account"
+                      variant="outlined"
+                      :rules="[rules.required]"
+                      class="mb-4"
+                      hide-details="auto"
+                    />
 
-                  <v-text-field
-                    v-model="loginData.password"
-                    :type="showPassword.login ? 'text' : 'password'"
-                    label="Şifre"
-                    prepend-inner-icon="mdi-lock"
-                    :append-inner-icon="showPassword.login ? 'mdi-eye' : 'mdi-eye-off'"
-                    variant="outlined"
-                    :rules="[rules.required]"
-                    class="mb-3"
-                    @click:append-inner="showPassword.login = !showPassword.login"
-                  ></v-text-field>
+                    <v-text-field
+                      v-model="loginData.password"
+                      :type="showPassword.login ? 'text' : 'password'"
+                      label="Şifre"
+                      prepend-inner-icon="mdi-lock"
+                      :append-inner-icon="showPassword.login ? 'mdi-eye' : 'mdi-eye-off'"
+                      variant="outlined"
+                      :rules="[rules.required]"
+                      class="mb-4"
+                      hide-details="auto"
+                      @click:append-inner="showPassword.login = !showPassword.login"
+                    />
 
-                  <v-btn
-                    type="submit"
-                    color="primary"
-                    size="large"
-                    block
-                    :loading="loading.login"
-                    :disabled="loading.login"
-                    class="mb-3"
-                  >
-                    Giriş Yap
-                  </v-btn>
-                </v-form>
-              </v-tabs-window-item>
+                    <v-btn
+                      type="submit"
+                      color="primary"
+                      size="large"
+                      block
+                      :loading="loading.login"
+                      :disabled="loading.login"
+                      class="mb-4"
+                      elevation="2"
+                    >
+                      Giriş Yap
+                    </v-btn>
+                  </v-form>
+                </v-card-text>
+              </v-card>
+            </v-tabs-window-item>
 
-              <!-- Kayıt Formu -->
-              <v-tabs-window-item value="register">
-                <v-form ref="registerForm" @submit.prevent="handleRegister">
-                  <v-row>
-                    <v-col cols="6">
-                      <v-text-field
-                        v-model="registerData.firstName"
-                        label="Ad"
-                        prepend-inner-icon="mdi-account"
-                        variant="outlined"
-                        :rules="[rules.required]"
-                      ></v-text-field>
-                    </v-col>
-                    <v-col cols="6">
-                      <v-text-field
-                        v-model="registerData.lastName"
-                        label="Soyad"
-                        variant="outlined"
-                        :rules="[rules.required]"
-                      ></v-text-field>
-                    </v-col>
-                  </v-row>
+            <!-- Register Form -->
+            <v-tabs-window-item value="register">
+              <v-card flat class="auth-card">
+                <v-card-text>
+                  <v-form ref="registerForm" @submit.prevent="handleRegister">
+                    <v-row>
+                      <v-col cols="6">
+                        <v-text-field
+                          v-model="registerData.firstName"
+                          label="Ad"
+                          prepend-inner-icon="mdi-account"
+                          variant="outlined"
+                          :rules="[rules.required]"
+                          hide-details="auto"
+                        />
+                      </v-col>
+                      <v-col cols="6">
+                        <v-text-field
+                          v-model="registerData.lastName"
+                          label="Soyad"
+                          variant="outlined"
+                          :rules="[rules.required]"
+                          hide-details="auto"
+                        />
+                      </v-col>
+                    </v-row>
 
-                  <v-text-field
-                    v-model="registerData.email"
-                    label="E-posta"
-                    prepend-inner-icon="mdi-email"
-                    variant="outlined"
-                    :rules="[rules.required, rules.email]"
-                    class="mb-3"
-                  ></v-text-field>
+                    <v-text-field
+                      v-model="registerData.email"
+                      label="E-posta"
+                      prepend-inner-icon="mdi-email"
+                      variant="outlined"
+                      :rules="[rules.required, rules.email]"
+                      class="mb-4"
+                      hide-details="auto"
+                    />
 
-                  <v-text-field
-                    v-model="registerData.userName"
-                    label="Kullanıcı Adı"
-                    prepend-inner-icon="mdi-account-circle"
-                    variant="outlined"
-                    :rules="[rules.required, rules.minLength]"
-                    class="mb-3"
-                  ></v-text-field>
+                    <v-text-field
+                      v-model="registerData.userName"
+                      label="Kullanıcı Adı"
+                      prepend-inner-icon="mdi-account-circle"
+                      variant="outlined"
+                      :rules="[rules.required, rules.minLength]"
+                      class="mb-4"
+                      hide-details="auto"
+                    />
 
-                  <v-text-field
-                    v-model="registerData.password"
-                    :type="showPassword.register ? 'text' : 'password'"
-                    label="Şifre"
-                    prepend-inner-icon="mdi-lock"
-                    :append-inner-icon="showPassword.register ? 'mdi-eye' : 'mdi-eye-off'"
-                    variant="outlined"
-                    :rules="[rules.required, rules.password]"
-                    class="mb-3"
-                    @click:append-inner="showPassword.register = !showPassword.register"
-                  ></v-text-field>
+                    <v-text-field
+                      v-model="registerData.password"
+                      :type="showPassword.register ? 'text' : 'password'"
+                      label="Şifre"
+                      prepend-inner-icon="mdi-lock"
+                      :append-inner-icon="showPassword.register ? 'mdi-eye' : 'mdi-eye-off'"
+                      variant="outlined"
+                      :rules="[rules.required, rules.password]"
+                      class="mb-4"
+                      hide-details="auto"
+                      @click:append-inner="showPassword.register = !showPassword.register"
+                    />
 
-                  <v-text-field
-                    v-model="registerData.confirmPassword"
-                    :type="showPassword.confirmPassword ? 'text' : 'password'"
-                    label="Şifre Tekrar"
-                    prepend-inner-icon="mdi-lock-check"
-                    :append-inner-icon="showPassword.confirmPassword ? 'mdi-eye' : 'mdi-eye-off'"
-                    variant="outlined"
-                    :rules="[rules.required, rules.passwordMatch]"
-                    class="mb-3"
-                    @click:append-inner="
-                      showPassword.confirmPassword = !showPassword.confirmPassword
-                    "
-                  ></v-text-field>
+                    <v-text-field
+                      v-model="registerData.confirmPassword"
+                      :type="showPassword.confirmPassword ? 'text' : 'password'"
+                      label="Şifre Tekrar"
+                      prepend-inner-icon="mdi-lock-check"
+                      :append-inner-icon="showPassword.confirmPassword ? 'mdi-eye' : 'mdi-eye-off'"
+                      variant="outlined"
+                      :rules="[rules.required, rules.passwordMatch]"
+                      class="mb-4"
+                      hide-details="auto"
+                      @click:append-inner="
+                        showPassword.confirmPassword = !showPassword.confirmPassword
+                      "
+                    />
 
-                  <v-btn
-                    type="submit"
-                    color="primary"
-                    size="large"
-                    block
-                    :loading="loading.register"
-                    :disabled="loading.register"
-                  >
-                    Kayıt Ol
-                  </v-btn>
-                </v-form>
-              </v-tabs-window-item>
-            </v-tabs-window>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <!-- Şifremi Unuttum Dialog -->
-    <v-dialog v-model="showForgotPassword" max-width="400">
-      <v-card>
-        <v-card-title>Şifremi Unuttum</v-card-title>
-        <v-card-text>
-          <v-text-field
-            v-model="forgotPasswordEmail"
-            label="E-posta Adresiniz"
-            prepend-inner-icon="mdi-email"
-            variant="outlined"
-            :rules="[rules.required, rules.email]"
-          ></v-text-field>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="grey" @click="showForgotPassword = false"> İptal </v-btn>
-          <v-btn color="primary" @click="handleForgotPassword"> Gönder </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-  </v-container>
+                    <v-btn
+                      type="submit"
+                      color="primary"
+                      size="large"
+                      block
+                      :loading="loading.register"
+                      :disabled="loading.register"
+                      elevation="2"
+                    >
+                      Hesap Oluştur
+                    </v-btn>
+                  </v-form>
+                </v-card-text>
+              </v-card>
+            </v-tabs-window-item>
+          </v-tabs-window>
+        </div>
+      </div>
+    </div>
+  </v-app>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { useToast } from 'vue-toastification'
 
-// Store ve Router
+// Router
 const router = useRouter()
-const authStore = useAuthStore()
-const toast = useToast()
 
 // Reactive Data
 const currentTab = ref('login')
@@ -278,20 +257,18 @@ const handleLogin = async () => {
 
   loading.login = true
   try {
-    const response = await authStore.login({
-      userName: loginData.userName,
-      password: loginData.password,
-    })
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    if (response.success) {
-      toast.success('Giriş başarılı!')
+    showAlert('success', 'Giriş başarılı!')
+
+    // Redirect to dashboard
+    setTimeout(() => {
       router.push('/dashboard')
-    } else {
-      showAlert('error', response.message || 'Giriş başarısız!')
-    }
+    }, 1000)
   } catch (error: any) {
     console.error('Login error:', error)
-    showAlert('error', error.message || 'Giriş sırasında bir hata oluştu')
+    showAlert('error', 'Giriş başarısız!')
   } finally {
     loading.login = false
   }
@@ -303,81 +280,259 @@ const handleRegister = async () => {
 
   loading.register = true
   try {
-    const response = await authStore.register({
-      firstName: registerData.firstName,
-      lastName: registerData.lastName,
-      email: registerData.email,
-      userName: registerData.userName,
-      password: registerData.password,
-    })
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 2000))
 
-    if (response.success) {
-      showAlert(
-        'success',
-        response.message || 'Kayıt başarılı! E-posta doğrulama linkini kontrol ediniz.',
-      )
-      currentTab.value = 'login'
-      // Form verilerini temizle
-      Object.keys(registerData).forEach((key) => {
-        registerData[key as keyof typeof registerData] = ''
-      })
-      registerForm.value.reset()
-    } else {
-      showAlert('error', response.message || 'Kayıt başarısız!')
-    }
+    showAlert('success', 'Kayıt başarılı! E-posta doğrulama linkini kontrol ediniz.')
+    currentTab.value = 'login'
+
+    // Clear form
+    Object.keys(registerData).forEach((key) => {
+      registerData[key as keyof typeof registerData] = ''
+    })
+    registerForm.value.reset()
   } catch (error: any) {
     console.error('Register error:', error)
-    showAlert('error', error.message || 'Kayıt sırasında bir hata oluştu')
+    showAlert('error', 'Kayıt başarısız!')
   } finally {
     loading.register = false
-  }
-}
-
-const handleForgotPassword = async () => {
-  if (!forgotPasswordEmail.value) {
-    showAlert('warning', 'E-posta adresi gereklidir')
-    return
-  }
-
-  try {
-    // Şifremi unuttum API çağrısı burada yapılacak
-    toast.info('Şifre sıfırlama linki e-posta adresinize gönderildi')
-    showForgotPassword.value = false
-    forgotPasswordEmail.value = ''
-  } catch (error: any) {
-    showAlert('error', 'Şifre sıfırlama işlemi başarısız')
   }
 }
 </script>
 
 <style scoped>
-.auth-container {
+.auth-wrapper {
+  display: flex;
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
+}
+
+/* Branding Panel */
+.branding-panel {
+  flex: 1;
+  background: linear-gradient(135deg, rgba(0, 75, 133, 0.95) 0%, rgba(102, 126, 234, 0.95) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem 2rem;
+  color: white;
+  position: relative;
+}
+
+.branding-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.branding-content {
+  max-width: 400px;
+  text-align: center;
+  z-index: 1;
+}
+
+.logo-container {
+  margin-bottom: 3rem;
+}
+
+.main-logo {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 1.5rem;
+  filter: brightness(0) invert(1);
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.company-name {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.company-tagline {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  margin-bottom: 0;
+  letter-spacing: 1px;
+}
+
+.features-list {
+  margin-bottom: 3rem;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.feature-item .v-icon {
+  margin-right: 1rem;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.5rem;
+  border-radius: 50%;
+}
+
+.feature-text h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.feature-text p {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin: 0;
+}
+
+.company-info {
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+/* Auth Panel */
+.auth-panel {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 450px;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.auth-logo {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1rem;
+}
+
+.auth-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #004b85;
+  margin-bottom: 0.5rem;
+}
+
+.auth-subtitle {
+  color: #666;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.auth-tabs {
+  margin-bottom: 2rem;
+}
+
+.tab-button {
+  font-weight: 600;
+  text-transform: none;
+}
+
+.auth-forms {
+  min-height: 400px;
 }
 
 .auth-card {
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.logo-section {
-  width: 100%;
-}
-
-.fill-height {
-  min-height: calc(100vh - 40px);
+  background: transparent;
 }
 
 /* Responsive Design */
-@media (max-width: 600px) {
-  .auth-container {
-    padding: 10px;
+@media (max-width: 1024px) {
+  .branding-panel {
+    display: none;
   }
 
-  .auth-card {
-    margin: 0;
+  .auth-panel {
+    flex: none;
+    width: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   }
+
+  .auth-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 2rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  }
+}
+
+@media (max-width: 600px) {
+  .auth-panel {
+    padding: 1rem;
+  }
+
+  .auth-container {
+    padding: 1.5rem;
+  }
+
+  .company-name {
+    font-size: 2rem;
+  }
+
+  .main-logo {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* Form Styling */
+.v-text-field {
+  margin-bottom: 1rem;
+}
+
+.v-btn {
+  text-transform: none;
+  font-weight: 600;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 </style>

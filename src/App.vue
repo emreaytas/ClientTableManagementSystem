@@ -98,13 +98,6 @@
     </v-main>
 
     <!-- Footer (sadece giriş yapmamış kullanıcılar için) -->
-    <v-footer v-if="!authStore.isAuthenticated" app color="grey-lighten-1" class="text-center">
-      <v-row justify="center" no-gutters>
-        <v-col cols="12" class="text-center">
-          <p class="mb-0">&copy; {{ currentYear }} AKADEMEDYA. Tüm hakları saklıdır.</p>
-        </v-col>
-      </v-row>
-    </v-footer>
 
     <!-- Loading Overlay -->
     <v-overlay v-if="loading" class="align-center justify-center" persistent>

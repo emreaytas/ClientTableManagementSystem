@@ -1,9 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const routes = [
   {
     path: '/',
-    redirect: '/auth',
+    redirect: () => {
+      const authStore = useAuthStore()
+      return authStore.isAuthenticated ? '/dashboard' : '/auth'
+    },
   },
   {
     path: '/auth',
@@ -23,7 +27,6 @@ const routes = [
       title: 'Ana Sayfa - AKADEMEDYA',
     },
   },
-  // Diğer route'lar gelecek
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
@@ -44,6 +47,39 @@ const router = createRouter({
       return { top: 0 }
     }
   },
+})
+
+// Navigation Guards
+router.beforeEach((to, from, next) => {
+  const authStore = useAuthStore()
+
+  // Sayfa başlığını güncelle
+  if (to.meta.title) {
+    document.title = to.meta.title as string
+  }
+
+  // Auth store'u initialize et
+  if (!authStore.isAuthenticated && localStorage.getItem('token')) {
+    authStore.initializeAuth()
+  }
+
+  const requiresAuth = to.meta.requiresAuth
+  const requiresGuest = to.meta.requiresGuest
+  const isAuthenticated = authStore.isAuthenticated
+
+  if (requiresAuth && !isAuthenticated) {
+    // Giriş gerekli ama kullanıcı giriş yapmamış
+    next({
+      name: 'Auth',
+      query: { redirect: to.fullPath },
+    })
+  } else if (requiresGuest && isAuthenticated) {
+    // Misafir gerekli ama kullanıcı giriş yapmış
+    const redirectPath = (to.query.redirect as string) || '/dashboard'
+    next(redirectPath)
+  } else {
+    next()
+  }
 })
 
 export default router

@@ -16,10 +16,7 @@
             </v-avatar>
             <h3 class="text-h5 mb-2">{{ authStore.fullName }}</h3>
             <p class="text-subtitle-1 text--secondary mb-3">{{ authStore.user?.email }}</p>
-            <v-chip
-              :color="authStore.user?.emailConfirmed ? 'success' : 'warning'"
-              variant="tonal"
-            >
+            <v-chip :color="authStore.user?.emailConfirmed ? 'success' : 'warning'" variant="tonal">
               {{ authStore.user?.emailConfirmed ? 'E-posta Doğrulandı' : 'E-posta Doğrulanmadı' }}
             </v-chip>
           </v-card-text>
@@ -39,7 +36,9 @@
               </v-list-item>
               <v-list-item>
                 <v-list-item-title>Üyelik Tarihi</v-list-item-title>
-                <v-list-item-subtitle>{{ formatDate(authStore.user?.createdAt) }}</v-list-item-subtitle>
+                <v-list-item-subtitle>{{
+                  formatDate(authStore.user?.createdAt)
+                }}</v-list-item-subtitle>
               </v-list-item>
               <v-list-item>
                 <v-list-item-title>Son Giriş</v-list-item-title>
@@ -90,9 +89,7 @@
                         :rules="[rules.required, rules.email]"
                         readonly
                       ></v-text-field>
-                      <p class="text-caption text--secondary">
-                        E-posta adresi değiştirilemez
-                      </p>
+                      <p class="text-caption text--secondary">E-posta adresi değiştirilemez</p>
                     </v-col>
                     <v-col cols="12">
                       <v-text-field
@@ -103,12 +100,7 @@
                       ></v-text-field>
                     </v-col>
                   </v-row>
-                  <v-btn
-                    type="submit"
-                    color="primary"
-                    :loading="personalLoading"
-                    class="mt-3"
-                  >
+                  <v-btn type="submit" color="primary" :loading="personalLoading" class="mt-3">
                     Bilgileri Güncelle
                   </v-btn>
                 </v-form>
@@ -155,12 +147,7 @@
                     class="mb-3"
                   ></v-text-field>
 
-                  <v-btn
-                    type="submit"
-                    color="primary"
-                    :loading="passwordLoading"
-                    class="mt-3"
-                  >
+                  <v-btn type="submit" color="primary" :loading="passwordLoading" class="mt-3">
                     Şifreyi Değiştir
                   </v-btn>
                 </v-form>
@@ -171,14 +158,10 @@
               <v-card-title class="text-error">Tehlikeli Alan</v-card-title>
               <v-card-text>
                 <p class="mb-4">
-                  Hesabınızı kalıcı olarak silmek için aşağıdaki butonu kullanabilirsiniz.
-                  Bu işlem geri alınamaz.
+                  Hesabınızı kalıcı olarak silmek için aşağıdaki butonu kullanabilirsiniz. Bu işlem
+                  geri alınamaz.
                 </p>
-                <v-btn
-                  color="error"
-                  variant="outlined"
-                  @click="confirmAccountDeletion"
-                >
+                <v-btn color="error" variant="outlined" @click="confirmAccountDeletion">
                   Hesabı Sil
                 </v-btn>
               </v-card-text>
@@ -253,58 +236,16 @@
         </v-tabs-window>
       </v-col>
     </v-row>
-
-    <!-- Account Deletion Confirmation Dialog -->
-    <v-dialog v-model="deleteAccountDialog" max-width="500">
-      <v-card>
-        <v-card-title class="text-h6 text-error">
-          Hesabı Sil
-        </v-card-title>
-        <v-card-text>
-          <v-alert type="error" variant="tonal" class="mb-4">
-            Bu işlem geri alınamaz! Hesabınız ve tüm verileriniz kalıcı olarak silinecektir.
-          </v-alert>
-          <p class="mb-3">
-            Devam etmek için kullanıcı adınızı yazın:
-          </p>
-          <v-text-field
-            v-model="deleteConfirmation"
-            :label="`"${authStore.userName}" yazın`"
-            variant="outlined"
-          ></v-text-field>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn
-            color="grey"
-            variant="text"
-            @click="deleteAccountDialog = false"
-          >
-            İptal
-          </v-btn>
-          <v-btn
-            color="error"
-            :disabled="deleteConfirmation !== authStore.userName"
-            :loading="deleteAccountLoading"
-            @click="deleteAccount"
-          >
-            Hesabı Sil
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+
 import { useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 
-// Composables
-const router = useRouter()
 const theme = useTheme()
 const authStore = useAuthStore()
 const toast = useToast()
@@ -314,27 +255,26 @@ const activeTab = ref('personal')
 const personalLoading = ref(false)
 const passwordLoading = ref(false)
 const preferencesLoading = ref(false)
-const deleteAccountLoading = ref(false)
 const deleteAccountDialog = ref(false)
 const deleteConfirmation = ref('')
 
 const showPassword = reactive({
   current: false,
   new: false,
-  confirm: false
+  confirm: false,
 })
 
 const personalData = reactive({
   firstName: '',
   lastName: '',
   email: '',
-  userName: ''
+  userName: '',
 })
 
 const passwordData = reactive({
   currentPassword: '',
   newPassword: '',
-  confirmPassword: ''
+  confirmPassword: '',
 })
 
 const preferences = reactive({
@@ -343,12 +283,12 @@ const preferences = reactive({
   dateFormat: 'dd/mm/yyyy',
   emailNotifications: true,
   browserNotifications: false,
-  marketingEmails: false
+  marketingEmails: false,
 })
 
 const stats = ref({
   tableCount: 0,
-  recordCount: 0
+  recordCount: 0,
 })
 
 // Form References
@@ -367,25 +307,25 @@ const currentDate = computed(() => {
   return new Date().toLocaleDateString('tr-TR', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
   })
 })
 
 // Options
 const themeOptions = [
   { title: 'Açık Tema', value: 'light' },
-  { title: 'Karanlık Tema', value: 'dark' }
+  { title: 'Karanlık Tema', value: 'dark' },
 ]
 
 const languageOptions = [
   { title: 'Türkçe', value: 'tr' },
-  { title: 'English', value: 'en' }
+  { title: 'English', value: 'en' },
 ]
 
 const dateFormatOptions = [
   { title: 'DD/MM/YYYY', value: 'dd/mm/yyyy' },
   { title: 'MM/DD/YYYY', value: 'mm/dd/yyyy' },
-  { title: 'YYYY-MM-DD', value: 'yyyy-mm-dd' }
+  { title: 'YYYY-MM-DD', value: 'yyyy-mm-dd' },
 ]
 
 // Validation Rules
@@ -402,7 +342,7 @@ const rules = {
   },
   passwordMatch: (value: string) => {
     return value === passwordData.newPassword || 'Şifreler eşleşmiyor'
-  }
+  },
 }
 
 // Methods
@@ -424,7 +364,7 @@ const loadStats = async () => {
     // Mock data
     stats.value = {
       tableCount: 5,
-      recordCount: 150
+      recordCount: 150,
     }
   } catch (error) {
     console.error('Stats loading error:', error)
@@ -502,23 +442,6 @@ const updateTheme = (newTheme: string) => {
 const confirmAccountDeletion = () => {
   deleteConfirmation.value = ''
   deleteAccountDialog.value = true
-}
-
-const deleteAccount = async () => {
-  deleteAccountLoading.value = true
-  try {
-    // API call to delete account
-    // await api.delete('/user/account')
-
-    toast.success('Hesap başarıyla silindi')
-    authStore.logout()
-    router.push('/auth')
-  } catch (error) {
-    console.error('Account deletion error:', error)
-    toast.error('Hesap silinirken hata oluştu')
-  } finally {
-    deleteAccountLoading.value = false
-  }
 }
 
 const formatDate = (dateString?: string) => {
