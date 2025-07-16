@@ -1,83 +1,197 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue' // ref ve computed kullanılıyor, readonly'ye ihtiyaç yok gibi
-import router from '@/router' // Yönlendirme için router'ı import edin
-// import api from '@/api'; // API servisiniz varsa bunu kullanın
+import { ref, computed } from 'vue'
+import router from '@/router'
+import apiClient from '@/plugins/axios'
+import type { LoginRequest, RegisterRequest, AuthResponse, User } from '@/types/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-  // Durumlar (State)
-  const user = ref<any | null>(null)
+  // States
+  const user = ref<User | null>(null)
   const token = ref<string | null>(localStorage.getItem('token'))
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
-  const loading = ref(false) // Yüklenme durumu
-  const error = ref<string | null>(null) // Hata mesajı
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  // Getters (Computed Properties)
+  // Getters
+  const isAuthenticated = computed(() => !!token.value && !!user.value)
   const fullName = computed(() => {
     if (!user.value) return 'Misafir'
     return `${user.value.firstName || ''} ${user.value.lastName || ''}`.trim()
   })
   const userName = computed(() => user.value?.userName || 'Misafir')
 
-  // Aksiyonlar (Actions)
-  const login = async (credentials: any) => {
+  // Actions
+  const login = async (credentials: LoginRequest): Promise<AuthResponse> => {
     loading.value = true
     error.value = null
-    try {
-      // Gerçek API çağrısı yerine mock data
-      // const response = await api.post('/auth/login', credentials);
-      // if (response.data.success) {
-      //   token.value = response.data.token;
-      //   user.value = response.data.user;
-      //   localStorage.setItem('token', response.data.token);
-      //   return { success: true, message: response.data.message };
-      // } else {
-      //   return { success: false, message: response.data.message };
-      // }
 
-      // ÖRNEK MOCK LOGİN:
-      if (credentials.userName === 'test' && credentials.password === '123456') {
-        const mockToken = 'mock_jwt_token_12345'
-        const mockUser = {
-          firstName: 'Deneme',
-          lastName: 'Kullanıcı',
-          email: 'test@example.com',
-          userName: 'test',
-          id: '1',
+    try {
+      const response = await apiClient.post('/auth/login', {
+        userName: credentials.userName,
+        password: credentials.password,
+      })
+
+      if (response.data.success) {
+        token.value = response.data.token
+        user.value = response.data.user
+        localStorage.setItem('token', response.data.token)
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+
+        return {
+          success: true,
+          message: response.data.message || 'Giriş başarılı!',
+          token: response.data.token,
+          user: response.data.user,
         }
-        token.value = mockToken
-        user.value = mockUser
-        localStorage.setItem('token', mockToken)
-        localStorage.setItem('user', JSON.stringify(mockUser)) // Kullanıcı bilgisini de kaydet
-        return { success: true, message: 'Giriş başarılı!' }
       } else {
-        return { success: false, message: 'Kullanıcı adı veya şifre yanlış.' }
+        return {
+          success: false,
+          message: response.data.message || 'Giriş başarısız!',
+        }
       }
     } catch (err: any) {
-      error.value = err.response?.data?.message || 'Giriş başarısız!'
-      return { success: false, message: error.value }
+      console.error('Login error:', err)
+
+      let errorMessage = 'Giriş yapılırken bir hata oluştu'
+
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message
+      } else if (err.response?.status === 401) {
+        errorMessage = 'Kullanıcı adı veya şifre yanlış'
+      } else if (err.response?.status === 400) {
+        errorMessage = 'Geçersiz giriş bilgileri'
+      } else if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Bağlantı zaman aşımına uğradı'
+      } else if (!err.response) {
+        errorMessage = 'Sunucuya bağlanılamıyor. İnternet bağlantınızı kontrol edin.'
+      }
+
+      error.value = errorMessage
+      return {
+        success: false,
+        message: errorMessage,
+      }
     } finally {
       loading.value = false
     }
   }
 
-  const register = async (userData: any) => {
+  const register = async (userData: RegisterRequest): Promise<AuthResponse> => {
     loading.value = true
     error.value = null
-    try {
-      // Gerçek API çağrısı yerine mock data
-      // const response = await api.post('/auth/register', userData);
-      // if (response.data.success) {
-      //   return { success: true, message: response.data.message };
-      // } else {
-      //   return { success: false, message: response.data.message };
-      // }
 
-      // ÖRNEK MOCK KAYIT:
-      console.log('Registering user:', userData)
-      return { success: true, message: 'Kayıt başarılı! E-posta doğrulama linkini kontrol ediniz.' }
+    try {
+      const response = await apiClient.post('/auth/register', {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email,
+        userName: userData.userName,
+        password: userData.password,
+        confirmPassword: userData.confirmPassword,
+      })
+
+      if (response.data.success) {
+        return {
+          success: true,
+          message:
+            response.data.message || 'Kayıt başarılı! E-posta doğrulama linkini kontrol edin.',
+        }
+      } else {
+        return {
+          success: false,
+          message: response.data.message || 'Kayıt başarısız!',
+        }
+      }
     } catch (err: any) {
-      error.value = err.response?.data?.message || 'Kayıt başarısız!'
-      return { success: false, message: error.value }
+      console.error('Register error:', err)
+
+      let errorMessage = 'Kayıt olurken bir hata oluştu'
+
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message
+      } else if (err.response?.data?.errors) {
+        // Validation errors
+        const errors = Object.values(err.response.data.errors).flat() as string[]
+        errorMessage = errors.join(', ')
+      } else if (err.response?.status === 400) {
+        errorMessage = 'Geçersiz kayıt bilgileri'
+      } else if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Bağlantı zaman aşımına uğradı'
+      } else if (!err.response) {
+        errorMessage = 'Sunucuya bağlanılamıyor. İnternet bağlantınızı kontrol edin.'
+      }
+
+      error.value = errorMessage
+      return {
+        success: false,
+        message: errorMessage,
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const confirmEmail = async (token: string, email: string): Promise<AuthResponse> => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await apiClient.post('/auth/confirm-email', {
+        token,
+        email,
+      })
+
+      return {
+        success: response.data.success,
+        message:
+          response.data.message ||
+          (response.data.success ? 'E-posta doğrulandı!' : 'Doğrulama başarısız!'),
+      }
+    } catch (err: any) {
+      console.error('Email confirmation error:', err)
+
+      let errorMessage = 'E-posta doğrulanırken bir hata oluştu'
+
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message
+      }
+
+      error.value = errorMessage
+      return {
+        success: false,
+        message: errorMessage,
+      }
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const resendEmailConfirmation = async (email: string): Promise<AuthResponse> => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await apiClient.post('/auth/resend-email-confirmation', {
+        email,
+      })
+
+      return {
+        success: response.data.success,
+        message: response.data.message || 'Doğrulama e-postası gönderildi!',
+      }
+    } catch (err: any) {
+      console.error('Resend email error:', err)
+
+      let errorMessage = 'E-posta gönderilirken bir hata oluştu'
+
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message
+      }
+
+      error.value = errorMessage
+      return {
+        success: false,
+        message: errorMessage,
+      }
     } finally {
       loading.value = false
     }
@@ -87,51 +201,85 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     localStorage.removeItem('token')
-    localStorage.removeItem('user') // Kullanıcı bilgisini de temizle
-    router.push('/auth') // Çıkış yaptıktan sonra login sayfasına yönlendir
+    localStorage.removeItem('user')
+    router.push('/auth')
   }
 
-  // YENİ EKLENECEK KISIM: initializeAuth fonksiyonu
-  const initializeAuth = async () => {
+  const initializeAuth = () => {
     const storedToken = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user') // Kullanıcı bilgisini de al
+    const storedUser = localStorage.getItem('user')
 
     if (storedToken && storedUser) {
       try {
-        // Token'ı ve kullanıcı bilgisini yükle
         token.value = storedToken
         user.value = JSON.parse(storedUser)
-
-        // OPTIONAL: Burada sunucuya token'ın geçerliliğini doğrulayan bir çağrı yapabilirsiniz.
-        // Örneğin: await api.get('/auth/verify-token');
-        // Eğer doğrulama başarısız olursa logout yapın.
         console.log('Oturum token ile başlatıldı.')
       } catch (err) {
         console.error('Oturum başlatılırken hata:', err)
-        logout() // Hata olursa oturumu kapat
+        logout()
       }
-    } else {
-      logout() // Token veya kullanıcı bilgisi yoksa oturumu kapat
     }
   }
 
-  const checkTokenValidity = () => {
-    // Basit bir token geçerlilik kontrolü (gerçekte JWT'nin süresini kontrol etmelisiniz)
-    return !!token.value // Şimdilik sadece token'ın varlığını kontrol ediyoruz
+  const checkTokenValidity = (): boolean => {
+    if (!token.value) return false
+
+    try {
+      // JWT token'ının expiration time'ını kontrol et
+      const payload = JSON.parse(atob(token.value.split('.')[1]))
+      const currentTime = Math.floor(Date.now() / 1000)
+
+      if (payload.exp && payload.exp < currentTime) {
+        console.log('Token expired')
+        return false
+      }
+
+      return true
+    } catch (err) {
+      console.error('Token validation error:', err)
+      return false
+    }
+  }
+
+  const refreshUserData = async (): Promise<boolean> => {
+    if (!token.value) return false
+
+    try {
+      const response = await apiClient.get('/auth/me')
+
+      if (response.data.success && response.data.user) {
+        user.value = response.data.user
+        localStorage.setItem('user', JSON.stringify(response.data.user))
+        return true
+      }
+
+      return false
+    } catch (err) {
+      console.error('Failed to refresh user data:', err)
+      return false
+    }
   }
 
   return {
+    // State
     user,
     token,
-    isAuthenticated,
     loading,
     error,
+
+    // Getters
+    isAuthenticated,
     fullName,
     userName,
+
+    // Actions
     login,
     register,
+    confirmEmail,
+    resendEmailConfirmation,
     logout,
-    initializeAuth, // Burayı eklemeyi unutmayın!
+    initializeAuth,
     checkTokenValidity,
+    refreshUserData,
   }
 })

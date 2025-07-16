@@ -1,4 +1,5 @@
-import axios, { AxiosResponse, AxiosError } from 'axios'
+import axios from 'axios'
+import type { AxiosResponse, AxiosError } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
 import router from '@/router'
@@ -55,7 +56,13 @@ apiClient.interceptors.response.use(
     return response
   },
   (error: AxiosError) => {
-    const toast = useToast()
+    // Toast'ın çalışıp çalışmadığını kontrol et
+    let toast: any
+    try {
+      toast = useToast()
+    } catch (e) {
+      console.warn('Toast not available:', e)
+    }
 
     // Error log
     console.error('API Error:', {
@@ -69,48 +76,66 @@ apiClient.interceptors.response.use(
     // Status code'a göre hata yönetimi
     if (error.response?.status === 401) {
       // Unauthorized - Token geçersiz
-      const authStore = useAuthStore()
-      authStore.logout()
+      try {
+        const authStore = useAuthStore()
+        authStore.logout()
 
-      toast.error('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.')
+        if (toast) {
+          toast.error('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.')
+        }
 
-      // Auth sayfasına yönlendir (sadece auth sayfasında değilsek)
-      if (router.currentRoute.value.name !== 'Auth') {
-        router.push({
-          name: 'Auth',
-          query: { redirect: router.currentRoute.value.fullPath },
-        })
+        // Auth sayfasına yönlendir (sadece auth sayfasında değilsek)
+        if (router.currentRoute.value.name !== 'Auth') {
+          router.push({
+            name: 'Auth',
+            query: { redirect: router.currentRoute.value.fullPath },
+          })
+        }
+      } catch (e) {
+        console.error('Error handling 401:', e)
       }
     } else if (error.response?.status === 403) {
       // Forbidden - Yetkisiz erişim
-      toast.error('Bu işlem için yetkiniz bulunmamaktadır.')
+      if (toast) {
+        toast.error('Bu işlem için yetkiniz bulunmamaktadır.')
+      }
     } else if (error.response?.status === 404) {
       // Not Found - Kaynak bulunamadı
-      toast.error('İstenen kaynak bulunamadı.')
+      if (toast) {
+        toast.error('İstenen kaynak bulunamadı.')
+      }
     } else if (error.response?.status === 422) {
       // Validation Error - Form validasyon hatası
       const errorData = error.response.data as any
-      if (errorData?.errors) {
+      if (errorData?.errors && toast) {
         // ModelState errors
         const errors = Object.values(errorData.errors).flat() as string[]
         errors.forEach((err) => toast.error(err))
-      } else if (errorData?.message) {
+      } else if (errorData?.message && toast) {
         toast.error(errorData.message)
-      } else {
+      } else if (toast) {
         toast.error('Form verilerinde hata bulundu.')
       }
     } else if (error.response?.status === 429) {
       // Too Many Requests - Rate limit
-      toast.error('Çok fazla istek gönderdiniz. Lütfen biraz bekleyip tekrar deneyin.')
-    } else if (error.response?.status >= 500) {
+      if (toast) {
+        toast.error('Çok fazla istek gönderdiniz. Lütfen biraz bekleyip tekrar deneyin.')
+      }
+    } else if (error.response?.status && error.response.status >= 500) {
       // Server Error - Sunucu hatası
-      toast.error('Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.')
+      if (toast) {
+        toast.error('Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.')
+      }
     } else if (error.code === 'ECONNABORTED') {
       // Timeout Error
-      toast.error('İstek zaman aşımına uğradı. Lütfen tekrar deneyin.')
+      if (toast) {
+        toast.error('İstek zaman aşımına uğradı. Lütfen tekrar deneyin.')
+      }
     } else if (!error.response) {
       // Network Error
-      toast.error('Bağlantı hatası. İnternet bağlantınızı kontrol edin.')
+      if (toast) {
+        toast.error('Bağlantı hatası. İnternet bağlantınızı kontrol edin.')
+      }
     }
 
     return Promise.reject(error)
@@ -148,6 +173,8 @@ export const API_ENDPOINTS = {
     RESET_PASSWORD: '/auth/reset-password',
     RESEND_EMAIL: '/auth/resend-email-confirmation',
     ME: '/auth/me',
+    CHECK_USERNAME: (username: string) => `/auth/check-username/${username}`,
+    CHECK_EMAIL: (email: string) => `/auth/check-email/${email}`,
   },
 
   // User endpoints

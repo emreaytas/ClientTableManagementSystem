@@ -40,6 +40,7 @@
           </v-alert>
 
           <v-tabs-window v-model="currentTab" class="auth-forms">
+            <!-- Login Form -->
             <v-tabs-window-item value="login">
               <v-card flat class="auth-card">
                 <v-card-text>
@@ -78,7 +79,7 @@
                       size="large"
                       block
                       :loading="authStore.loading"
-                      :disabled="authStore.loading"
+                      :disabled="authStore.loading || hasValidationErrors"
                       class="mt-4"
                       elevation="2"
                     >
@@ -89,6 +90,7 @@
               </v-card>
             </v-tabs-window-item>
 
+            <!-- Register Form -->
             <v-tabs-window-item value="register">
               <v-card flat class="auth-card">
                 <v-card-text>
@@ -181,7 +183,7 @@
                       size="large"
                       block
                       :loading="authStore.loading"
-                      :disabled="authStore.loading"
+                      :disabled="authStore.loading || hasValidationErrors"
                       class="mt-4"
                       elevation="2"
                     >
@@ -199,10 +201,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue' // watch eklendi
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import axios from 'axios' // axios veya kullandığınız http istemcisini import edin
+import apiClient from '@/plugins/axios'
 
 // Router
 const router = useRouter()
@@ -242,21 +244,7 @@ const registerData = reactive({
 const loginForm = ref<any>()
 const registerForm = ref<any>()
 
-// Computed validation rules
-const rules = computed(() => ({
-  required: (value: string) => !!value || 'Bu alan zorunludur',
-  email: (value: string) => {
-    const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return pattern.test(value) || 'Geçerli bir e-posta adresi giriniz'
-  },
-  minLength: (value: string) => (value && value.length >= 3) || 'En az 3 karakter olmalıdır',
-  password: (value: string) => (value && value.length >= 6) || 'Şifre en az 6 karakter olmalıdır',
-  passwordMatch: (value: string) => value === registerData.password || 'Şifreler eşleşmiyor',
-}))
-
-// --- YENİ EKLENEN ANLIK KONTROL MANTIĞI ---
-
-// Anlık validasyon durumlarını tutmak için reaktif nesneler
+// Validation state for real-time checking
 const usernameCheck = reactive({
   loading: false,
   error: '',
@@ -269,72 +257,110 @@ const emailCheck = reactive({
   success: '',
 })
 
+// Computed validation rules
+const rules = computed(() => ({
+  required: (value: string) => !!value || 'Bu alan zorunludur',
+  email: (value: string) => {
+    const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return pattern.test(value) || 'Geçerli bir e-posta adresi giriniz'
+  },
+  minLength: (value: string) => (value && value.length >= 3) || 'En az 3 karakter olmalıdır',
+  password: (value: string) => (value && value.length >= 6) || 'Şifre en az 6 karakter olmalıdır',
+  passwordMatch: (value: string) => value === registerData.password || 'Şifreler eşleşmiyor',
+}))
+
+// Computed property to check if there are validation errors
+const hasValidationErrors = computed(() => {
+  if (currentTab.value === 'login') {
+    return !!usernameCheck.error
+  } else {
+    return !!usernameCheck.error || !!emailCheck.error
+  }
+})
+
+// Debounce timer
 let debounceTimer: number
 
-// Kullanıcı adı ve e-posta alanlarındaki değişiklikleri izle
+// Watch for username changes
 watch([() => loginData.userName, () => registerData.userName], ([loginUser, registerUser]) => {
-  const newUsername = currentTab.value === 'login' ? loginUser : registerUser
+  const currentUsername = currentTab.value === 'login' ? loginUser : registerUser
 
+  // Clear previous timer and reset states
   clearTimeout(debounceTimer)
   usernameCheck.error = ''
   usernameCheck.success = ''
 
-  if (!newUsername || newUsername.length < 3) {
-    return // 3 karakterden kısaysa kontrol etme
+  if (!currentUsername || currentUsername.length < 3) {
+    return
   }
 
   usernameCheck.loading = true
   debounceTimer = setTimeout(async () => {
     try {
-      const response = await axios.get(`/api/auth/check-username/${newUsername}`)
+      const response = await apiClient.get(
+        `/auth/check-username/${encodeURIComponent(currentUsername)}`,
+      )
+
       if (currentTab.value === 'login') {
-        // Giriş formunda, kullanıcının OLMAMASI bir hatadır.
+        // Login form: User should exist
         if (!response.data.isTaken) {
           usernameCheck.error = 'Böyle bir kullanıcı bulunamadı.'
+          usernameCheck.success = ''
         } else {
+          usernameCheck.error = ''
           usernameCheck.success = 'Kullanıcı adı geçerli.'
         }
       } else {
-        // Register form
-        // Kayıt formunda, kullanıcının ZATEN VAR OLMASI bir hatadır.
+        // Register form: User should NOT exist
         if (response.data.isTaken) {
           usernameCheck.error = 'Bu kullanıcı adı zaten kullanılıyor.'
+          usernameCheck.success = ''
         } else {
+          usernameCheck.error = ''
           usernameCheck.success = 'Kullanıcı adı uygun.'
         }
       }
-    } catch (err) {
-      console.error('Kullanıcı adı kontrol hatası:', err)
+    } catch (error) {
+      console.error('Kullanıcı adı kontrol hatası:', error)
       usernameCheck.error = 'Kontrol sırasında bir hata oluştu.'
+      usernameCheck.success = ''
     } finally {
       usernameCheck.loading = false
     }
-  }, 500) // Kullanıcı yazmayı bıraktıktan 500ms sonra kontrol et
+  }, 500)
 })
 
+// Watch for email changes (only for register form)
 watch(
   () => registerData.email,
   (newEmail) => {
+    // Clear previous timer and reset states
     clearTimeout(debounceTimer)
     emailCheck.error = ''
     emailCheck.success = ''
 
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!newEmail || !emailPattern.test(newEmail)) return
+    if (!newEmail || !emailPattern.test(newEmail)) {
+      return
+    }
 
     emailCheck.loading = true
     debounceTimer = setTimeout(async () => {
       try {
         const encodedEmail = encodeURIComponent(newEmail)
-        const response = await axios.get(`/api/auth/check-email/${encodedEmail}`)
+        const response = await apiClient.get(`/auth/check-email/${encodedEmail}`)
+
         if (response.data.isTaken) {
           emailCheck.error = 'Bu e-posta adresi zaten kullanılıyor.'
+          emailCheck.success = ''
         } else {
+          emailCheck.error = ''
           emailCheck.success = 'E-posta adresi uygun.'
         }
-      } catch (err) {
-        console.error('E-posta kontrol hatası:', err)
+      } catch (error) {
+        console.error('E-posta kontrol hatası:', error)
         emailCheck.error = 'Kontrol sırasında bir hata oluştu.'
+        emailCheck.success = ''
       } finally {
         emailCheck.loading = false
       }
@@ -342,21 +368,23 @@ watch(
   },
 )
 
-// Sekme değiştirildiğinde validasyon mesajlarını temizle
+// Watch for tab changes to clear validation states
 watch(
   () => currentTab.value,
   () => {
+    // Clear all validation states
     usernameCheck.error = ''
     usernameCheck.success = ''
     emailCheck.error = ''
     emailCheck.success = ''
-    // Formlardaki verileri de temizleyebilirsiniz (isteğe bağlı)
-    // Object.assign(loginData, { userName: '', password: '' });
-    // Object.assign(registerData, { /* ... */ });
+
+    // Clear any pending timers
+    clearTimeout(debounceTimer)
+
+    // Hide any alerts
+    alert.show = false
   },
 )
-
-// --- ANLIK KONTROL MANTIĞI SONU ---
 
 // Methods
 const showAlert = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
@@ -373,11 +401,12 @@ const hideAlert = () => {
 }
 
 const handleLogin = async () => {
-  // Anlık validasyon hatası varsa formu gönderme
+  // Check for validation errors before proceeding
   if (usernameCheck.error) {
     showAlert('error', usernameCheck.error)
     return
   }
+
   const { valid } = await loginForm.value.validate()
   if (!valid) return
 
@@ -386,6 +415,7 @@ const handleLogin = async () => {
       userName: loginData.userName.trim(),
       password: loginData.password,
     })
+
     if (response.success) {
       showAlert('success', response.message || 'Giriş başarılı!')
       const redirectPath = (route.query.redirect as string) || '/dashboard'
@@ -400,11 +430,12 @@ const handleLogin = async () => {
 }
 
 const handleRegister = async () => {
-  // Anlık validasyon hatası varsa formu gönderme
+  // Check for validation errors before proceeding
   if (usernameCheck.error || emailCheck.error) {
     showAlert('error', 'Lütfen formdaki hataları düzeltin.')
     return
   }
+
   const { valid } = await registerForm.value.validate()
   if (!valid) return
 
@@ -422,6 +453,22 @@ const handleRegister = async () => {
       showAlert('success', response.message || 'Kayıt başarılı! Lütfen e-postanızı doğrulayın.')
       currentTab.value = 'login'
       registerForm.value?.reset()
+
+      // Clear form data
+      Object.assign(registerData, {
+        firstName: '',
+        lastName: '',
+        email: '',
+        userName: '',
+        password: '',
+        confirmPassword: '',
+      })
+
+      // Clear validation states
+      usernameCheck.error = ''
+      usernameCheck.success = ''
+      emailCheck.error = ''
+      emailCheck.success = ''
     } else {
       showAlert('error', response.message || 'Kayıt başarısız!')
     }
@@ -513,7 +560,7 @@ if (authStore.isAuthenticated) {
 .auth-title2 {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #333;
+  color: red;
 }
 
 .auth-tabs {
