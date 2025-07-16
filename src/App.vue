@@ -52,14 +52,7 @@
               </v-avatar>
             </template>
           </v-list-item>
-          <v-divider></v-divider>
-          <v-list-item
-            prepend-icon="mdi-account"
-            title="Profil"
-            @click="$router.push('/profile')"
-          ></v-list-item>
-          <v-list-item prepend-icon="mdi-cog" title="Ayarlar" @click="toggleTheme"></v-list-item>
-          <v-divider></v-divider>
+
           <v-list-item
             prepend-icon="mdi-logout"
             title="Çıkış Yap"
