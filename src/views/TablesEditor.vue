@@ -6,7 +6,7 @@
           <v-btn icon="mdi-arrow-left" variant="text" @click="goBack" class="mr-3"></v-btn>
           <div>
             <h1 class="text-h4 font-weight-bold">
-              {{ isEdit ? 'Tablo Düzenle' : 'Yeni Tablo Oluştur' }}
+              {{ isEdit ? 'Tablo Düzenle' : 'YENİ TABLO OLUŞTUR' }}
             </h1>
             <p class="text-subtitle-1 text--secondary">
               {{
@@ -45,13 +45,6 @@
                 rows="3"
                 class="mb-3"
               ></v-textarea>
-
-              <v-switch
-                v-model="tableData.isActive"
-                label="Aktif"
-                color="primary"
-                class="mb-3"
-              ></v-switch>
 
               <v-alert type="info" variant="tonal" class="mb-3">
                 Tablo oluşturduktan sonra kolon yapısını değiştirmek verilerinizi etkileyebilir.

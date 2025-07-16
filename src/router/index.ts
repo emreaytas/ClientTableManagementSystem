@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { readonly, ref } from 'vue'
+
 const routes = [
   {
     path: '/',
@@ -21,6 +21,51 @@ const routes = [
     meta: {
       requiresAuth: false,
       title: 'E-posta Doğrulama',
+    },
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views/Dashboard.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Ana Sayfa - AKADEMEDYA',
+    },
+  },
+  {
+    path: '/tables',
+    name: 'Tables',
+    component: () => import('@/views/Tables.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Tablolarım - AKADEMEDYA',
+    },
+  },
+  {
+    path: '/tables/new',
+    name: 'CreateTable',
+    component: () => import('@/views/TablesEditor.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Yeni Tablo - AKADEMEDYA',
+    },
+  },
+  {
+    path: '/tables/:id/edit',
+    name: 'EditTable',
+    component: () => import('@/views/TablesEditor.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Tablo Düzenle - AKADEMEDYA',
+    },
+  },
+  {
+    path: '/tables/:id/data',
+    name: 'TableData',
+    component: () => import('@/views/TableData.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Tablo Verileri - AKADEMEDYA',
     },
   },
 ]

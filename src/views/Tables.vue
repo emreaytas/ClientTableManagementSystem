@@ -73,8 +73,12 @@
 
             <!-- Record Count Column -->
             <template v-slot:item.recordCount="{ item }">
-              <v-chip :color="getRecordCountColor(item.recordCount)" variant="tonal" size="small">
-                {{ item.recordCount }} kayıt
+              <v-chip
+                :color="getRecordCountColor(item.recordCount || 0)"
+                variant="tonal"
+                size="small"
+              >
+                {{ item.recordCount || 0 }} kayıt
               </v-chip>
             </template>
 
@@ -84,13 +88,9 @@
             </template>
 
             <!-- Status Column -->
-            <template v-slot:item.status="{ item }">
-              <v-chip
-                :color="item.status === 'active' ? 'success' : 'warning'"
-                variant="tonal"
-                size="small"
-              >
-                {{ item.status === 'active' ? 'Aktif' : 'Pasif' }}
+            <template v-slot:item.isActive="{ item }">
+              <v-chip :color="item.isActive ? 'success' : 'warning'" variant="tonal" size="small">
+                {{ item.isActive ? 'Aktif' : 'Pasif' }}
               </v-chip>
             </template>
 
@@ -101,10 +101,10 @@
                   <template v-slot:activator="{ props }">
                     <v-btn
                       v-bind="props"
-                      icon="mdi-database-eye"
+                      icon="mdi-eye"
                       size="small"
                       variant="text"
-                      color="info"
+                      color="primary"
                       @click="viewTableData(item.id)"
                     ></v-btn>
                   </template>
@@ -114,7 +114,7 @@
                   <template v-slot:activator="{ props }">
                     <v-btn
                       v-bind="props"
-                      icon="mdi-database-plus"
+                      icon="mdi-plus"
                       size="small"
                       variant="text"
                       color="success"
@@ -130,7 +130,7 @@
                       icon="mdi-pencil"
                       size="small"
                       variant="text"
-                      color="primary"
+                      color="info"
                       @click="editTable(item.id)"
                     ></v-btn>
                   </template>
@@ -156,11 +156,14 @@
     </v-row>
 
     <!-- Delete Confirmation Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="400">
+    <v-dialog v-model="deleteDialog" max-width="500">
       <v-card>
-        <v-card-title class="text-h6"> Tabloyu Sil </v-card-title>
+        <v-card-title class="text-h5 d-flex align-center">
+          <v-icon color="error" class="mr-2">mdi-delete-alert</v-icon>
+          Tablo Silme Onayı
+        </v-card-title>
         <v-card-text>
-          <p class="mb-2">
+          <p class="text-body-1 mb-3">
             <strong>{{ selectedTable?.name }}</strong> tablosunu silmek istediğinizden emin misiniz?
           </p>
           <v-alert type="warning" variant="tonal" class="mt-3">
@@ -183,6 +186,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import { apiService, handleApiError, type Table } from '@/services/api'
 
 // Composables
 const router = useRouter()
@@ -196,42 +200,16 @@ const search = ref('')
 const sortBy = ref('createdAt')
 const filterBy = ref('all')
 const itemsPerPage = ref(10)
-const selectedTable = ref<any>(null)
-
-const tables = ref([
-  // Mock data - API'den gelecek
-  {
-    id: '1',
-    name: 'Müşteri Listesi',
-    description: 'Müşteri bilgileri ve iletişim detayları',
-    recordCount: 45,
-    createdAt: '2024-01-15T10:30:00Z',
-    status: 'active',
-  },
-  {
-    id: '2',
-    name: 'Ürün Envanteri',
-    description: 'Ürün stok takibi ve fiyat bilgileri',
-    recordCount: 28,
-    createdAt: '2024-01-10T14:20:00Z',
-    status: 'active',
-  },
-  {
-    id: '3',
-    name: 'Satış Raporları',
-    description: 'Aylık satış verileri ve analizler',
-    recordCount: 120,
-    createdAt: '2024-01-05T09:15:00Z',
-    status: 'active',
-  },
-])
+const selectedTable = ref<Table | null>(null)
+const tables = ref<Table[]>([])
 
 // Computed
 const filteredTables = computed(() => {
   let filtered = tables.value
 
   if (filterBy.value !== 'all') {
-    filtered = filtered.filter((table) => table.status === filterBy.value)
+    const isActive = filterBy.value === 'active'
+    filtered = filtered.filter((table) => table.isActive === isActive)
   }
 
   return filtered
@@ -242,7 +220,7 @@ const headers = [
   { title: 'Tablo Adı', key: 'name', sortable: true },
   { title: 'Kayıt Sayısı', key: 'recordCount', sortable: true },
   { title: 'Oluşturma Tarihi', key: 'createdAt', sortable: true },
-  { title: 'Durum', key: 'status', sortable: true },
+  { title: 'Durum', key: 'isActive', sortable: true },
   { title: 'İşlemler', key: 'actions', sortable: false, width: '200' },
 ]
 
@@ -263,12 +241,10 @@ const filterOptions = [
 const loadTables = async () => {
   loading.value = true
   try {
-    // API call to fetch tables
-    // const response = await api.get('/tables')
-    // tables.value = response.data
+    const data = await apiService.getTables()
+    tables.value = data
   } catch (error) {
-    console.error('Tables loading error:', error)
-    toast.error('Tablolar yüklenirken hata oluştu')
+    handleApiError(error, 'Tablolar yüklenirken hata oluştu')
   } finally {
     loading.value = false
   }
@@ -278,19 +254,19 @@ const createTable = () => {
   router.push('/tables/new')
 }
 
-const editTable = (id: string) => {
+const editTable = (id: number) => {
   router.push(`/tables/${id}/edit`)
 }
 
-const viewTableData = (id: string) => {
+const viewTableData = (id: number) => {
   router.push(`/tables/${id}/data`)
 }
 
-const addTableData = (id: string) => {
+const addTableData = (id: number) => {
   router.push(`/tables/${id}/data?action=add`)
 }
 
-const confirmDelete = (table: any) => {
+const confirmDelete = (table: Table) => {
   selectedTable.value = table
   deleteDialog.value = true
 }
@@ -300,11 +276,10 @@ const deleteTable = async () => {
 
   deleteLoading.value = true
   try {
-    // API call to delete table
-    // await api.delete(`/tables/${selectedTable.value.id}`)
+    await apiService.deleteTable(selectedTable.value.id)
 
     // Remove from local array
-    const index = tables.value.findIndex((t) => t.id === selectedTable.value.id)
+    const index = tables.value.findIndex((t) => t.id === selectedTable.value!.id)
     if (index > -1) {
       tables.value.splice(index, 1)
     }
@@ -313,8 +288,7 @@ const deleteTable = async () => {
     deleteDialog.value = false
     selectedTable.value = null
   } catch (error) {
-    console.error('Table deletion error:', error)
-    toast.error('Tablo silinirken hata oluştu')
+    handleApiError(error, 'Tablo silinirken hata oluştu')
   } finally {
     deleteLoading.value = false
   }
