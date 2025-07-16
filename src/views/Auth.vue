@@ -6,6 +6,7 @@
         <div class="left-panel-content">
           <img src="/icons/logo.svg" alt="AKADEMEDYA" class="brand-logo" />
           <h1 class="welcome-title">AKADEMEDYA TABLO YÖNETİM SİSTEMİ</h1>
+          <h2 class="welcome-title2">AKADEMEDYA TABLE MANAGEMENT SYSTEM</h2>
           <p class="welcome-subtitle"></p>
         </div>
       </v-col>
@@ -345,6 +346,13 @@ if (authStore.isAuthenticated) {
 
 .welcome-title {
   font-size: 2.8rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.welcome-title2 {
+  font-size: 1.3rem;
   font-weight: 700;
   margin-bottom: 1rem;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
