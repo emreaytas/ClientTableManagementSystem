@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-
+import { readonly, ref } from 'vue'
 const routes = [
   {
     path: '/',
@@ -21,23 +21,6 @@ const routes = [
     meta: {
       requiresAuth: false,
       title: 'E-posta Doğrulama',
-    },
-  },
-  {
-    path: '/dashboard',
-    name: 'Dashboard',
-    component: () => import('@/views/Dashboard.vue'),
-    meta: {
-      requiresAuth: true,
-      title: 'Ana Sayfa - AKADEMEDYA',
-    },
-  },
-  {
-    path: '/:pathMatch(.*)*',
-    name: 'NotFound',
-    component: () => import('@/views/NotFound.vue'),
-    meta: {
-      title: 'Sayfa Bulunamadı - AKADEMEDYA',
     },
   },
 ]
