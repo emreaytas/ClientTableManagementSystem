@@ -43,7 +43,44 @@ apiClient.interceptors.response.use(
   },
 )
 
-// API Interface Types
+// API Response Interfaces (matching actual API responses)
+export interface ApiTable {
+  id: number
+  tableName: string
+  description: string
+  createdAt: string
+  columns: ApiColumn[]
+}
+
+export interface ApiColumn {
+  id: number
+  columnName: string
+  dataType: number // Enum: 0=VARCHAR, 1=INT, 2=DECIMAL, 3=DATETIME
+  isRequired: boolean
+  displayOrder: number
+  defaultValue: string
+}
+
+// API Request Interfaces (for creating/updating)
+export interface CreateTableRequest {
+  tableName: string
+  description: string
+  columns: CreateColumnRequest[]
+}
+
+export interface CreateColumnRequest {
+  columnName: string
+  dataType: number // ColumnDataType enum
+  isRequired: boolean
+  displayOrder: number
+  defaultValue: string
+}
+
+export interface UpdateTableRequest extends CreateTableRequest {
+  id: number
+}
+
+// Legacy interfaces for backward compatibility
 export interface Table {
   id: number
   name: string
@@ -78,17 +115,6 @@ export interface TableRow {
   values: Record<number, string>
 }
 
-export interface CreateTableRequest {
-  name: string
-  description: string
-  isActive: boolean
-  columns: Omit<Column, 'id'>[]
-}
-
-export interface UpdateTableRequest extends CreateTableRequest {
-  id: number
-}
-
 export interface AddTableDataRequest {
   tableId: number
   columnValues: Record<number, string>
@@ -100,12 +126,20 @@ export interface UpdateTableDataRequest {
   columnValues: Record<number, string>
 }
 
+// Data Type Enums
+export enum ColumnDataType {
+  VARCHAR = 0,
+  INT = 1,
+  DECIMAL = 2,
+  DATETIME = 3,
+}
+
 // API Service Class
 class ApiService {
   // Tables API
-  async getTables(): Promise<Table[]> {
+  async getTables(): Promise<ApiTable[]> {
     try {
-      const response = await apiClient.get<Table[]>('/Tables')
+      const response = await apiClient.get<ApiTable[]>('/Tables')
       return response.data
     } catch (error) {
       console.error('Error fetching tables:', error)
@@ -113,9 +147,9 @@ class ApiService {
     }
   }
 
-  async getTable(id: number): Promise<Table> {
+  async getTable(id: number): Promise<ApiTable> {
     try {
-      const response = await apiClient.get<Table>(`/Tables/${id}`)
+      const response = await apiClient.get<ApiTable>(`/Tables/${id}`)
       return response.data
     } catch (error) {
       console.error('Error fetching table:', error)
@@ -123,19 +157,20 @@ class ApiService {
     }
   }
 
-  async createTable(data: CreateTableRequest): Promise<Table> {
+  async createTable(data: CreateTableRequest): Promise<ApiTable> {
     try {
-      const response = await apiClient.post<Table>('/Tables', data)
-      return response.data
+      console.log('Creating table with data:', data)
+      const response = await apiClient.post<{ message: string; table: ApiTable }>('/Tables', data)
+      return response.data.table
     } catch (error) {
       console.error('Error creating table:', error)
       throw error
     }
   }
 
-  async updateTable(id: number, data: UpdateTableRequest): Promise<Table> {
+  async updateTable(id: number, data: UpdateTableRequest): Promise<ApiTable> {
     try {
-      const response = await apiClient.put<Table>(`/Tables/${id}`, data)
+      const response = await apiClient.put<ApiTable>(`/Tables/${id}`, data)
       return response.data
     } catch (error) {
       console.error('Error updating table:', error)
@@ -247,17 +282,148 @@ export const handleApiError = (error: any, customMessage?: string) => {
     return
   } else if (error.response?.status === 403) {
     toast.error('Bu işlem için yetkiniz bulunmuyor.')
-  } else if (error.response?.status >= 500) {
+    return
+  } else if (error.response?.status === 404) {
+    toast.error('İstenen kaynak bulunamadı.')
+    return
+  } else if (error.response?.status === 400) {
+    // Bad Request - Validation errors
+    const errorMessage =
+      error.response?.data?.message || error.response?.data?.errors || 'Geçersiz istek.'
+    toast.error(customMessage || errorMessage)
+    return
+  } else if (error.response?.status === 429) {
+    // Too Many Requests
+    toast.error('Çok fazla istek gönderdiniz. Lütfen biraz bekleyip tekrar deneyin.')
+    return
+  } else if (error.response?.status && error.response.status >= 500) {
+    // Server Error
     toast.error('Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.')
-  } else if (error.response?.data?.message) {
-    toast.error(error.response.data.message)
-  } else if (customMessage) {
-    toast.error(customMessage)
-  } else {
-    toast.error('Beklenmeyen bir hata oluştu')
+    return
+  } else if (error.code === 'ECONNABORTED') {
+    // Timeout Error
+    toast.error('İstek zaman aşımına uğradı. Lütfen tekrar deneyin.')
+    return
+  } else if (!error.response) {
+    // Network Error
+    toast.error('Bağlantı hatası. İnternet bağlantınızı kontrol edin.')
+    return
   }
 
-  console.error('API Error:', error)
+  // Generic error
+  const fallbackMessage = customMessage || 'Bilinmeyen bir hata oluştu.'
+  toast.error(fallbackMessage)
 }
 
-export default apiService
+// Data type conversion helpers
+export const convertDataTypeToString = (dataType: number): string => {
+  switch (dataType) {
+    case ColumnDataType.VARCHAR:
+      return 'varchar'
+    case ColumnDataType.INT:
+      return 'int'
+    case ColumnDataType.DECIMAL:
+      return 'decimal'
+    case ColumnDataType.DATETIME:
+      return 'datetime'
+    default:
+      return 'varchar'
+  }
+}
+
+export const convertStringToDataType = (type: string): ColumnDataType => {
+  switch (type.toLowerCase()) {
+    case 'varchar':
+      return ColumnDataType.VARCHAR
+    case 'int':
+      return ColumnDataType.INT
+    case 'decimal':
+      return ColumnDataType.DECIMAL
+    case 'datetime':
+      return ColumnDataType.DATETIME
+    default:
+      return ColumnDataType.VARCHAR
+  }
+}
+
+// Convert API response to legacy Table format for backward compatibility
+export const convertApiTableToLegacy = (apiTable: ApiTable): Table => {
+  return {
+    id: apiTable.id,
+    name: apiTable.tableName,
+    description: apiTable.description,
+    isActive: true, // API doesn't return this, assume true
+    createdAt: apiTable.createdAt,
+    updatedAt: apiTable.createdAt, // API doesn't return updatedAt
+    recordCount: 0, // API doesn't return this in list
+    columns: apiTable.columns.map(convertApiColumnToLegacy),
+  }
+}
+
+// Convert API column to legacy Column format
+export const convertApiColumnToLegacy = (apiColumn: ApiColumn): Column => {
+  return {
+    id: apiColumn.id,
+    name: apiColumn.columnName,
+    type: convertDataTypeToString(apiColumn.dataType) as 'varchar' | 'int' | 'decimal' | 'datetime',
+    isRequired: apiColumn.isRequired,
+    isUnique: false, // API doesn't have this field
+    maxLength: undefined,
+    precision: undefined,
+    scale: undefined,
+  }
+}
+
+// API Endpoints constants
+export const API_ENDPOINTS = {
+  // Auth endpoints
+  AUTH: {
+    LOGIN: '/auth/login',
+    REGISTER: '/auth/register',
+    LOGOUT: '/auth/logout',
+    REFRESH: '/auth/refresh',
+    CONFIRM_EMAIL: '/auth/confirm-email',
+    FORGOT_PASSWORD: '/auth/forgot-password',
+    RESET_PASSWORD: '/auth/reset-password',
+    RESEND_EMAIL: '/auth/resend-email-confirmation',
+    ME: '/auth/me',
+    CHECK_USERNAME: (username: string) => `/auth/check-username/${username}`,
+    CHECK_EMAIL: (email: string) => `/auth/check-email/${email}`,
+  },
+
+  // User endpoints
+  USER: {
+    PROFILE: '/user/profile',
+    UPDATE_PROFILE: '/user/profile',
+    CHANGE_PASSWORD: '/user/change-password',
+  },
+
+  // Table endpoints
+  TABLES: {
+    LIST: '/Tables',
+    CREATE: '/Tables',
+    GET: (id: string | number) => `/Tables/${id}`,
+    UPDATE: (id: string | number) => `/Tables/${id}`,
+    DELETE: (id: string | number) => `/Tables/${id}`,
+    SCHEMA: (id: string | number) => `/Tables/${id}/schema`,
+    INFO: (id: string | number) => `/Tables/${id}/info`,
+  },
+
+  // Table Data endpoints
+  TABLE_DATA: {
+    GET: (tableId: string | number) => `/Tables/${tableId}/data`,
+    CREATE: '/TableData',
+    UPDATE: (rowId: string | number) => `/TableData/${rowId}`,
+    DELETE: (rowId: string | number) => `/TableData/${rowId}`,
+  },
+
+  // Test endpoints
+  TEST: {
+    PUBLIC: '/Test/public',
+    PROTECTED: '/Test/protected',
+    TOKEN_INFO: '/Test/token-info',
+  },
+}
+
+// Export configured axios instance
+export default apiClient

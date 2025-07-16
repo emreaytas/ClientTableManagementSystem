@@ -31,11 +31,12 @@
             </v-card-title>
             <v-card-text>
               <v-text-field
-                v-model="tableData.name"
+                v-model="tableData.tableName"
                 label="Tablo Adı *"
                 variant="outlined"
-                :rules="[rules.required]"
+                :rules="[rules.required, rules.tableName]"
                 class="mb-3"
+                :disabled="loading"
               ></v-text-field>
 
               <v-textarea
@@ -44,11 +45,32 @@
                 variant="outlined"
                 rows="3"
                 class="mb-3"
+                :disabled="loading"
               ></v-textarea>
+
+              <v-checkbox
+                v-model="tableData.isActive"
+                label="Aktif"
+                class="mb-3"
+                :disabled="loading"
+                style="display: none"
+              ></v-checkbox>
 
               <v-alert type="info" variant="tonal" class="mb-3">
                 Tablo oluşturduktan sonra kolon yapısını değiştirmek verilerinizi etkileyebilir.
               </v-alert>
+
+              <!-- Preview Button -->
+              <v-btn
+                color="info"
+                variant="outlined"
+                block
+                prepend-icon="mdi-eye"
+                @click="showPreview"
+                :disabled="tableData.columns.length === 0"
+              >
+                Önizleme
+              </v-btn>
             </v-card-text>
           </v-card>
         </v-col>
@@ -66,6 +88,7 @@
                 size="small"
                 prepend-icon="mdi-plus"
                 @click="addColumn"
+                :disabled="loading"
               >
                 Kolon Ekle
               </v-btn>
@@ -90,11 +113,11 @@
                       <v-card-text>
                         <div class="d-flex justify-space-between align-center mb-3">
                           <v-chip
-                            :color="getColumnTypeColor(column.type)"
+                            :color="getColumnTypeColor(column.dataType)"
                             variant="tonal"
                             size="small"
                           >
-                            {{ getColumnTypeLabel(column.type) }}
+                            {{ getColumnTypeLabel(column.dataType) }}
                           </v-chip>
                           <v-btn
                             icon="mdi-delete"
@@ -102,36 +125,41 @@
                             variant="text"
                             color="error"
                             @click="removeColumn(index)"
+                            :disabled="loading"
                           ></v-btn>
                         </div>
 
                         <v-text-field
-                          v-model="column.name"
+                          v-model="column.columnName"
                           label="Kolon Adı *"
                           variant="outlined"
                           density="compact"
-                          :rules="[rules.required]"
+                          :rules="[rules.required, rules.columnName]"
                           class="mb-2"
+                          :disabled="loading"
                         ></v-text-field>
 
                         <v-select
-                          v-model="column.type"
+                          v-model="column.dataType"
                           :items="columnTypes"
+                          item-title="title"
+                          item-value="value"
                           label="Veri Tipi *"
                           variant="outlined"
                           density="compact"
-                          :rules="[rules.required]"
+                          :rules="[rules.dataType]"
                           class="mb-2"
+                          :disabled="loading"
                         ></v-select>
 
+                        <!-- Optional: Default Value field (removed complex type-specific fields for now) -->
                         <v-text-field
-                          v-if="column.type === 'varchar'"
-                          v-model.number="column.maxLength"
-                          label="Maksimum Uzunluk"
+                          v-model="column.defaultValue"
+                          label="Varsayılan Değer"
                           variant="outlined"
                           density="compact"
-                          type="number"
                           class="mb-2"
+                          :disabled="loading"
                         ></v-text-field>
 
                         <v-checkbox
@@ -139,12 +167,7 @@
                           label="Zorunlu"
                           density="compact"
                           class="mb-1"
-                        ></v-checkbox>
-
-                        <v-checkbox
-                          v-model="column.isUnique"
-                          label="Benzersiz"
-                          density="compact"
+                          :disabled="loading"
                         ></v-checkbox>
                       </v-card-text>
                     </v-card>
@@ -160,12 +183,14 @@
       <v-row class="mt-6">
         <v-col cols="12">
           <div class="d-flex justify-end gap-3">
-            <v-btn color="grey" variant="outlined" @click="goBack"> İptal </v-btn>
+            <v-btn color="grey" variant="outlined" @click="goBack" :disabled="loading">
+              İptal
+            </v-btn>
             <v-btn
               color="primary"
               type="submit"
               :loading="loading"
-              :disabled="loading || tableData.columns.length === 0"
+              :disabled="loading || tableData.columns.length === 0 || !isFormValid"
             >
               {{ isEdit ? 'Güncelle' : 'Oluştur' }}
             </v-btn>
@@ -175,32 +200,43 @@
     </v-form>
 
     <!-- Preview Dialog -->
-    <v-dialog v-model="previewDialog" max-width="800">
+    <v-dialog v-model="previewDialog" max-width="1000">
       <v-card>
         <v-card-title>
-          <span class="text-h6">Tablo Önizleme</span>
+          <span class="text-h6">Tablo Önizleme: {{ tableData.tableName }}</span>
         </v-card-title>
         <v-card-text>
           <v-table>
             <thead>
               <tr>
-                <th v-for="column in tableData.columns" :key="column.name" class="text-left">
-                  {{ column.name }}
+                <th v-for="column in tableData.columns" :key="column.columnName" class="text-left">
+                  {{ column.columnName }}
                   <v-chip
-                    :color="getColumnTypeColor(column.type)"
+                    :color="getColumnTypeColor(column.dataType)"
                     variant="tonal"
                     size="x-small"
                     class="ml-2"
                   >
-                    {{ getColumnTypeLabel(column.type) }}
+                    {{ getColumnTypeLabel(column.dataType) }}
                   </v-chip>
+                  <v-tooltip v-if="column.isRequired" text="Zorunlu Alan">
+                    <template v-slot:activator="{ props }">
+                      <v-icon v-bind="props" size="small" color="red" class="ml-1"
+                        >mdi-asterisk</v-icon
+                      >
+                    </template>
+                  </v-tooltip>
                 </th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td v-for="column in tableData.columns" :key="column.name" class="text--secondary">
-                  {{ getSampleData(column.type) }}
+                <td
+                  v-for="column in tableData.columns"
+                  :key="column.columnName"
+                  class="text--secondary"
+                >
+                  {{ getSampleData(column) }}
                 </td>
               </tr>
             </tbody>
@@ -219,6 +255,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import {
+  apiService,
+  type ApiTable,
+  type ApiColumn,
+  type CreateTableRequest,
+  type ColumnDataType,
+} from '@/services/api'
 
 // Composables
 const route = useRoute()
@@ -230,34 +273,98 @@ const loading = ref(false)
 const previewDialog = ref(false)
 const tableForm = ref()
 
+// API Data Type Enum matching backend
+enum ColumnDataType {
+  VARCHAR = 0,
+  INT = 1,
+  DECIMAL = 2,
+  DATETIME = 3,
+}
+
+// Table data structure matching API expectations
 const tableData = ref({
-  name: '',
+  tableName: '', // API expects 'tableName' not 'name'
   description: '',
-  isActive: true,
   columns: [] as Array<{
-    name: string
-    type: string
-    maxLength?: number
+    columnName: string // API expects 'columnName' not 'name'
+    dataType: ColumnDataType
     isRequired: boolean
-    isUnique: boolean
+    displayOrder: number
+    defaultValue?: string
   }>,
 })
 
 // Computed
 const isEdit = computed(() => !!route.params.id)
-const tableId = computed(() => route.params.id as string)
+const tableId = computed(() => parseInt(route.params.id as string))
 
-// Column Types
+const isFormValid = computed(() => {
+  return (
+    tableData.value.tableName.trim() !== '' &&
+    tableData.value.columns.length > 0 &&
+    tableData.value.columns.every(
+      (col) =>
+        col.columnName.trim() !== '' &&
+        col.dataType !== null &&
+        col.dataType !== undefined &&
+        [
+          ColumnDataType.VARCHAR,
+          ColumnDataType.INT,
+          ColumnDataType.DECIMAL,
+          ColumnDataType.DATETIME,
+        ].includes(col.dataType),
+    )
+  )
+})
+
+// Column Types based on API enum
 const columnTypes = [
-  { title: 'Metin (VARCHAR)', value: 'varchar' },
-  { title: 'Sayı (INT)', value: 'int' },
-  { title: 'Ondalık (DECIMAL)', value: 'decimal' },
-  { title: 'Tarih/Saat (DATETIME)', value: 'datetime' },
+  { title: 'Metin (VARCHAR)', value: ColumnDataType.VARCHAR },
+  { title: 'Sayı (INT)', value: ColumnDataType.INT },
+  { title: 'Ondalık (DECIMAL)', value: ColumnDataType.DECIMAL },
+  { title: 'Tarih/Saat (DATETIME)', value: ColumnDataType.DATETIME },
 ]
 
 // Validation Rules
 const rules = {
   required: (value: string) => !!value || 'Bu alan zorunludur',
+  requiredSelect: (value: any) =>
+    (value !== null && value !== undefined && value !== '') || 'Bu alan zorunludur',
+  tableName: (value: string) => {
+    if (!value) return 'Tablo adı zorunludur'
+    if (value.length < 2) return 'Tablo adı en az 2 karakter olmalıdır'
+    if (value.length > 100) return 'Tablo adı en fazla 100 karakter olabilir'
+    if (!/^[a-zA-ZçÇğĞıİöÖşŞüÜ0-9\s_-]+$/.test(value))
+      return 'Tablo adı geçersiz karakterler içeriyor'
+    return true
+  },
+  columnName: (value: string) => {
+    if (!value) return 'Kolon adı zorunludur'
+    if (value.length < 1) return 'Kolon adı en az 1 karakter olmalıdır'
+    if (value.length > 50) return 'Kolon adı en fazla 50 karakter olabilir'
+    if (!/^[a-zA-ZçÇğĞıİöÖşŞüÜ0-9\s_-]+$/.test(value))
+      return 'Kolon adı geçersiz karakterler içeriyor'
+    return true
+  },
+  dataType: (value: any) => {
+    if (value === null || value === undefined) return 'Veri tipi seçmelisiniz'
+    if (
+      ![
+        ColumnDataType.VARCHAR,
+        ColumnDataType.INT,
+        ColumnDataType.DECIMAL,
+        ColumnDataType.DATETIME,
+      ].includes(value)
+    ) {
+      return 'Geçerli bir veri tipi seçin'
+    }
+    return true
+  },
+  maxLength: (value: number) => {
+    if (!value || value < 1) return 'Maksimum uzunluk en az 1 olmalıdır'
+    if (value > 8000) return 'Maksimum uzunluk en fazla 8000 olabilir'
+    return true
+  },
 }
 
 // Methods
@@ -266,48 +373,25 @@ const loadTable = async () => {
 
   loading.value = true
   try {
-    // API call to fetch table data
-    // const response = await api.get(`/tables/${tableId.value}`)
-    // tableData.value = response.data
+    const table: ApiTable = await apiService.getTable(tableId.value)
 
-    // Mock data for now
     tableData.value = {
-      name: 'Müşteri Listesi',
-      description: 'Müşteri bilgileri ve iletişim detayları',
-      isActive: true,
-      columns: [
-        {
-          name: 'Ad',
-          type: 'varchar',
-          maxLength: 50,
-          isRequired: true,
-          isUnique: false,
-        },
-        {
-          name: 'Soyad',
-          type: 'varchar',
-          maxLength: 50,
-          isRequired: true,
-          isUnique: false,
-        },
-        {
-          name: 'Email',
-          type: 'varchar',
-          maxLength: 100,
-          isRequired: true,
-          isUnique: true,
-        },
-        {
-          name: 'Yaş',
-          type: 'int',
-          isRequired: false,
-          isUnique: false,
-        },
-      ],
+      tableName: table.tableName,
+      description: table.description || '',
+      columns: table.columns.map((col, index) => ({
+        columnName: col.columnName,
+        dataType: col.dataType as ColumnDataType,
+        isRequired: col.isRequired,
+        displayOrder: col.displayOrder || index + 1,
+        defaultValue: col.defaultValue || '',
+      })),
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Table loading error:', error)
-    toast.error('Tablo yüklenirken hata oluştu')
+    toast.error(
+      'Tablo yüklenirken hata oluştu: ' + (error.response?.data?.message || error.message),
+    )
+    router.push('/tables')
   } finally {
     loading.value = false
   }
@@ -315,11 +399,11 @@ const loadTable = async () => {
 
 const addColumn = () => {
   tableData.value.columns.push({
-    name: '',
-    type: 'varchar',
-    maxLength: 255,
+    columnName: '',
+    dataType: ColumnDataType.VARCHAR, // Varsayılan olarak VARCHAR seçili gelsin
     isRequired: false,
-    isUnique: false,
+    displayOrder: tableData.value.columns.length + 1,
+    defaultValue: '',
   })
 }
 
@@ -329,31 +413,95 @@ const removeColumn = (index: number) => {
 
 const saveTable = async () => {
   const { valid } = await tableForm.value.validate()
-  if (!valid) return
+  if (!valid) {
+    toast.error('Lütfen form hatalarını düzeltin')
+    return
+  }
 
-  // Validate columns
-  const hasEmptyColumns = tableData.value.columns.some((col) => !col.name || !col.type)
-  if (hasEmptyColumns) {
-    toast.error('Tüm kolonların adı ve tipi belirtilmelidir')
+  // Additional validation
+  if (tableData.value.columns.length === 0) {
+    toast.error('En az bir kolon eklemelisiniz')
+    return
+  }
+
+  // Check for duplicate column names
+  const columnNames = tableData.value.columns.map((col) => col.columnName.toLowerCase().trim())
+  const duplicates = columnNames.filter((name, index) => columnNames.indexOf(name) !== index)
+  if (duplicates.length > 0) {
+    toast.error('Kolon adları benzersiz olmalıdır')
+    return
+  }
+
+  // Validate column data types
+  const invalidColumns = tableData.value.columns.filter(
+    (col) =>
+      col.dataType === null ||
+      col.dataType === undefined ||
+      ![
+        ColumnDataType.VARCHAR,
+        ColumnDataType.INT,
+        ColumnDataType.DECIMAL,
+        ColumnDataType.DATETIME,
+      ].includes(col.dataType),
+  )
+  if (invalidColumns.length > 0) {
+    toast.error('Tüm kolonlar için geçerli veri tipi seçmelisiniz')
     return
   }
 
   loading.value = true
   try {
+    // Prepare data exactly as API expects (CreateTableRequest format)
+    const apiData = {
+      tableName: tableData.value.tableName.trim(),
+      description: tableData.value.description.trim(),
+      columns: tableData.value.columns.map((col, index) => ({
+        columnName: col.columnName.trim(),
+        dataType: col.dataType,
+        isRequired: col.isRequired,
+        displayOrder: index + 1,
+        defaultValue: col.defaultValue || '',
+      })),
+    }
+
+    console.log('Sending data to API:', apiData) // Debug log
+
     if (isEdit.value) {
-      // Update existing table
-      // await api.put(`/tables/${tableId.value}`, tableData.value)
+      // For updates, we might need different endpoint or format
+      const updateData: CreateTableRequest = {
+        ...apiData,
+        // Add id for update if needed by API
+      }
+      await apiService.updateTable(tableId.value, updateData as any)
       toast.success('Tablo başarıyla güncellendi')
     } else {
-      // Create new table
-      // await api.post('/tables', tableData.value)
+      const createData: CreateTableRequest = apiData
+      await apiService.createTable(createData)
       toast.success('Tablo başarıyla oluşturuldu')
     }
 
     router.push('/tables')
-  } catch (error) {
+  } catch (error: any) {
     console.error('Table save error:', error)
-    toast.error(`Tablo ${isEdit.value ? 'güncellenirken' : 'oluşturulurken'} hata oluştu`)
+
+    // Enhanced error logging
+    if (error.response) {
+      console.error('Error response data:', error.response.data)
+      console.error('Error response status:', error.response.status)
+      console.error('Error response headers:', error.response.headers)
+    }
+
+    const errorMessage =
+      error.response?.data?.message ||
+      error.response?.data?.errors
+        ?.map((e: any) => Object.values(e))
+        .flat()
+        .join(', ') ||
+      error.message ||
+      'Bilinmeyen hata'
+    toast.error(
+      `Tablo ${isEdit.value ? 'güncellenirken' : 'oluşturulurken'} hata oluştu: ${errorMessage}`,
+    )
   } finally {
     loading.value = false
   }
@@ -363,46 +511,61 @@ const goBack = () => {
   router.push('/tables')
 }
 
-const getColumnTypeColor = (type: string): string => {
-  switch (type) {
-    case 'varchar':
+const showPreview = () => {
+  if (tableData.value.columns.length === 0) {
+    toast.warning('Önizleme için en az bir kolon eklemelisiniz')
+    return
+  }
+  previewDialog.value = true
+}
+
+// Helper functions
+const getColumnTypeColor = (dataType: ColumnDataType): string => {
+  switch (dataType) {
+    case ColumnDataType.VARCHAR:
       return 'blue'
-    case 'int':
+    case ColumnDataType.INT:
       return 'green'
-    case 'decimal':
+    case ColumnDataType.DECIMAL:
       return 'orange'
-    case 'datetime':
+    case ColumnDataType.DATETIME:
       return 'purple'
     default:
       return 'grey'
   }
 }
 
-const getColumnTypeLabel = (type: string): string => {
-  const typeMap: Record<string, string> = {
-    varchar: 'Metin',
-    int: 'Sayı',
-    decimal: 'Ondalık',
-    datetime: 'Tarih',
+const getColumnTypeLabel = (dataType: ColumnDataType): string => {
+  switch (dataType) {
+    case ColumnDataType.VARCHAR:
+      return 'Metin'
+    case ColumnDataType.INT:
+      return 'Sayı'
+    case ColumnDataType.DECIMAL:
+      return 'Ondalık'
+    case ColumnDataType.DATETIME:
+      return 'Tarih'
+    default:
+      return 'Bilinmeyen'
   }
-  return typeMap[type] || type
 }
 
-const getSampleData = (type: string): string => {
-  switch (type) {
-    case 'varchar':
+const getSampleData = (column: any): string => {
+  switch (column.dataType) {
+    case ColumnDataType.VARCHAR:
       return 'Örnek metin'
-    case 'int':
+    case ColumnDataType.INT:
       return '123'
-    case 'decimal':
+    case ColumnDataType.DECIMAL:
       return '123.45'
-    case 'datetime':
+    case ColumnDataType.DATETIME:
       return '2024-01-15 10:30'
     default:
       return 'Örnek veri'
   }
 }
 
+// Initialize
 onMounted(() => {
   if (isEdit.value) {
     loadTable()
