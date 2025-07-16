@@ -1,12 +1,20 @@
 <template>
   <v-app>
-    <div class="auth-wrapper">
-      <!-- Right Panel - Auth Form -->
-      <div class="auth-panel">
+    <v-row no-gutters class="auth-wrapper">
+      <!-- Left Panel: Branding -->
+      <v-col cols="12" md="7" class="left-panel d-none d-md-flex">
+        <div class="left-panel-content">
+          <img src="/icons/logo.svg" alt="AKADEMEDYA" class="brand-logo" />
+          <h1 class="welcome-title">AKADEMEDYA TABLO YÖNETİM SİSTEMİ</h1>
+          <p class="welcome-subtitle"></p>
+        </div>
+      </v-col>
+
+      <!-- Right Panel: Auth Form -->
+      <v-col cols="12" md="5" class="right-panel">
         <div class="auth-container">
           <div class="auth-header">
-            <img src="/icons/logo.svg" alt="AKADEMEDYA" class="auth-logo" />
-            <h2 class="auth-title">AKADEMEDYA</h2>
+            <h2 class="auth-title">Giriş yapın ya da kaydolun</h2>
           </div>
 
           <v-tabs v-model="currentTab" color="primary" class="auth-tabs" centered>
@@ -43,7 +51,7 @@
                       prepend-inner-icon="mdi-account"
                       variant="outlined"
                       :rules="[rules.required]"
-                      class="mb-2"
+                      class="mb-4"
                       hide-details="auto"
                       density="compact"
                     />
@@ -56,7 +64,7 @@
                       :append-inner-icon="showPassword.login ? 'mdi-eye' : 'mdi-eye-off'"
                       variant="outlined"
                       :rules="[rules.required]"
-                      class="mb-3"
+                      class="mb-4"
                       hide-details="auto"
                       density="compact"
                       @click:append-inner="showPassword.login = !showPassword.login"
@@ -69,7 +77,7 @@
                       block
                       :loading="authStore.loading"
                       :disabled="authStore.loading"
-                      class="mt-2"
+                      class="mt-4"
                       elevation="2"
                     >
                       {{ authStore.loading ? 'Giriş yapılıyor...' : 'Giriş Yap' }}
@@ -85,7 +93,7 @@
                 <v-card-text>
                   <v-form ref="registerForm" @submit.prevent="handleRegister">
                     <v-row>
-                      <v-col cols="6">
+                      <v-col cols="12" sm="6">
                         <v-text-field
                           v-model="registerData.firstName"
                           label="Ad"
@@ -93,15 +101,17 @@
                           variant="outlined"
                           :rules="[rules.required]"
                           hide-details="auto"
+                          density="compact"
                         />
                       </v-col>
-                      <v-col cols="6">
+                      <v-col cols="12" sm="6">
                         <v-text-field
                           v-model="registerData.lastName"
                           label="Soyad"
                           variant="outlined"
                           :rules="[rules.required]"
                           hide-details="auto"
+                          density="compact"
                         />
                       </v-col>
                     </v-row>
@@ -112,8 +122,9 @@
                       prepend-inner-icon="mdi-email"
                       variant="outlined"
                       :rules="[rules.required, rules.email]"
-                      class="mb-4"
+                      class="mt-4"
                       hide-details="auto"
+                      density="compact"
                     />
 
                     <v-text-field
@@ -122,8 +133,9 @@
                       prepend-inner-icon="mdi-account-circle"
                       variant="outlined"
                       :rules="[rules.required, rules.minLength]"
-                      class="mb-4"
+                      class="mt-4"
                       hide-details="auto"
+                      density="compact"
                     />
 
                     <v-text-field
@@ -134,8 +146,9 @@
                       :append-inner-icon="showPassword.register ? 'mdi-eye' : 'mdi-eye-off'"
                       variant="outlined"
                       :rules="[rules.required, rules.password]"
-                      class="mb-4"
+                      class="mt-4"
                       hide-details="auto"
+                      density="compact"
                       @click:append-inner="showPassword.register = !showPassword.register"
                     />
 
@@ -147,8 +160,9 @@
                       :append-inner-icon="showPassword.confirmPassword ? 'mdi-eye' : 'mdi-eye-off'"
                       variant="outlined"
                       :rules="[rules.required, rules.passwordMatch]"
-                      class="mb-4"
+                      class="mt-4"
                       hide-details="auto"
+                      density="compact"
                       @click:append-inner="
                         showPassword.confirmPassword = !showPassword.confirmPassword
                       "
@@ -161,6 +175,7 @@
                       block
                       :loading="authStore.loading"
                       :disabled="authStore.loading"
+                      class="mt-4"
                       elevation="2"
                     >
                       {{ authStore.loading ? 'Hesap oluşturuluyor...' : 'Hesap Oluştur' }}
@@ -171,8 +186,8 @@
             </v-tabs-window-item>
           </v-tabs-window>
         </div>
-      </div>
-    </div>
+      </v-col>
+    </v-row>
   </v-app>
 </template>
 
@@ -216,33 +231,19 @@ const registerData = reactive({
 })
 
 // Form References
-const loginForm = ref()
-const registerForm = ref()
+const loginForm = ref<any>()
+const registerForm = ref<any>()
 
 // Computed validation rules
 const rules = computed(() => ({
-  required: (value: string) => {
-    return !!value || 'Bu alan zorunludur'
-  },
+  required: (value: string) => !!value || 'Bu alan zorunludur',
   email: (value: string) => {
-    if (!value) return 'Bu alan zorunludur'
     const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return pattern.test(value) || 'Geçerli bir e-posta adresi giriniz'
   },
-  minLength: (value: string) => {
-    if (!value) return 'Bu alan zorunludur'
-    return value.length >= 3 || 'En az 3 karakter olmalıdır'
-  },
-  password: (value: string) => {
-    if (!value) return 'Şifre zorunludur'
-    if (value.length < 6) return 'Şifre en az 6 karakter olmalıdır'
-    return true
-  },
-  passwordMatch: (value: string) => {
-    if (!value) return 'Şifre tekrarı zorunludur'
-    if (!registerData.password) return 'Önce şifrenizi girin'
-    return value === registerData.password || 'Şifreler eşleşmiyor'
-  },
+  minLength: (value: string) => (value && value.length >= 3) || 'En az 3 karakter olmalıdır',
+  password: (value: string) => (value && value.length >= 6) || 'Şifre en az 6 karakter olmalıdır',
+  passwordMatch: (value: string) => value === registerData.password || 'Şifreler eşleşmiyor',
 }))
 
 // Methods
@@ -250,8 +251,6 @@ const showAlert = (type: 'success' | 'error' | 'warning' | 'info', message: stri
   alert.type = type
   alert.message = message
   alert.show = true
-
-  // Auto hide after 5 seconds
   setTimeout(() => {
     alert.show = false
   }, 5000)
@@ -270,32 +269,20 @@ const handleLogin = async () => {
       userName: loginData.userName.trim(),
       password: loginData.password,
     })
-
     if (response.success) {
       showAlert('success', response.message || 'Giriş başarılı!')
-
-      // Redirect logic
       const redirectPath = (route.query.redirect as string) || '/dashboard'
-
-      setTimeout(() => {
-        router.push(redirectPath)
-      }, 1000)
+      setTimeout(() => router.push(redirectPath), 1000)
     } else {
       showAlert('error', response.message || 'Giriş başarısız!')
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Login error:', error)
     showAlert('error', 'Giriş yapılırken bir hata oluştu')
   }
 }
 
 const handleRegister = async () => {
-  // Manual validation for password match
-  if (registerData.password !== registerData.confirmPassword) {
-    showAlert('error', 'Şifreler eşleşmiyor!')
-    return
-  }
-
   const { valid } = await registerForm.value.validate()
   if (!valid) return
 
@@ -306,31 +293,22 @@ const handleRegister = async () => {
       email: registerData.email.trim().toLowerCase(),
       userName: registerData.userName.trim(),
       password: registerData.password,
-      confirmPassword: registerData.confirmPassword, // Bu satırı ekleyin
+      confirmPassword: registerData.confirmPassword,
     })
 
     if (response.success) {
-      showAlert(
-        'success',
-        response.message || 'Kayıt başarılı! E-posta doğrulama linkini kontrol ediniz.',
-      )
-
-      // Switch to login tab
+      showAlert('success', response.message || 'Kayıt başarılı! Lütfen e-postanızı doğrulayın.')
       currentTab.value = 'login'
-
-      // Clear form
-      Object.keys(registerData).forEach((key) => {
-        registerData[key as keyof typeof registerData] = ''
-      })
       registerForm.value?.reset()
     } else {
       showAlert('error', response.message || 'Kayıt başarısız!')
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Register error:', error)
     showAlert('error', 'Kayıt olurken bir hata oluştu')
   }
 }
+
 // Check if user is already authenticated
 if (authStore.isAuthenticated) {
   const redirectPath = (route.query.redirect as string) || '/dashboard'
@@ -339,91 +317,57 @@ if (authStore.isAuthenticated) {
 </script>
 
 <style scoped>
-/* SCROLLBAR TAMAMEN KALDIRMA */
-
-/* Global scroll kaldırma */
-html,
-body {
-  overflow: hidden !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Vuetify app ayarları */
-.v-application {
-  overflow: hidden !important;
-}
-
-/* Tüm scrollbar'ları tamamen gizle */
-::-webkit-scrollbar {
-  display: none !important;
-  width: 0px !important;
-  height: 0px !important;
-  background: transparent !important;
-}
-
-::-webkit-scrollbar-track {
-  display: none !important;
-  background: transparent !important;
-}
-
-::-webkit-scrollbar-thumb {
-  display: none !important;
-  background: transparent !important;
-}
-
-::-webkit-scrollbar-corner {
-  display: none !important;
-  background: transparent !important;
-}
-
-/* Firefox */
-* {
-  scrollbar-width: none !important;
-}
-
+/* Global Styles */
 .auth-wrapper {
-  display: flex;
   width: 100vw;
   height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  overflow: hidden !important;
-  position: fixed;
-  top: 0;
-  left: 0;
-  margin: 0 !important;
-  padding: 0 !important;
-  box-sizing: border-box;
+  overflow: hidden;
+  font-family: 'Roboto', 'Segoe UI', sans-serif;
 }
 
-/* Auth Panel */
-.auth-panel {
-  flex: 1;
+/* Left Panel (Branding) */
+.left-panel {
+  background: linear-gradient(135deg, #00529b 0%, #002b4f 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: white;
+  padding: 3rem;
+}
+
+.brand-logo {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 2rem;
+}
+
+.welcome-title {
+  font-size: 2.8rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.welcome-subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  max-width: 400px;
+}
+
+/* Right Panel (Form) */
+.right-panel {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 2rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  overflow: hidden !important;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
+  background-color: #f5f7fa;
 }
 
 .auth-container {
   width: 100%;
   max-width: 450px;
-  max-height: 85vh;
-  overflow: hidden !important;
-  box-sizing: border-box;
-}
-
-/* Container için scrollbar tamamen kaldır */
-.auth-container::-webkit-scrollbar {
-  display: none !important;
+  padding: 2rem;
 }
 
 .auth-header {
@@ -431,132 +375,41 @@ body {
   margin-bottom: 2rem;
 }
 
-.auth-logo {
-  width: 80px;
-  height: 80px;
-  margin-bottom: 1rem;
-}
-
 .auth-title {
   font-size: 2rem;
-  font-weight: 700;
-  color: #004b85;
-  margin-bottom: 0.5rem;
-}
-
-.auth-subtitle {
-  color: #666;
-  font-size: 1rem;
-  margin: 0;
+  font-weight: 600;
+  color: #333;
 }
 
 .auth-tabs {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .tab-button {
   font-weight: 600;
   text-transform: none;
-}
-
-.auth-forms {
-  min-height: 300px;
-  overflow: hidden !important;
+  flex: 1;
 }
 
 .auth-card {
   background: transparent;
-  overflow: hidden !important;
-}
-
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .auth-panel {
-    flex: none;
-    width: 100vw;
-    height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    overflow: hidden !important;
-  }
-
-  .auth-container {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 20px;
-    padding: 2rem;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-    overflow: hidden !important;
-  }
-}
-
-@media (max-width: 600px) {
-  .auth-panel {
-    padding: 1rem;
-    overflow: hidden !important;
-  }
-
-  .auth-container {
-    padding: 1.5rem;
-    overflow: hidden !important;
-  }
-
-  .auth-title {
-    font-size: 1.8rem;
-  }
-
-  .auth-logo {
-    width: 60px;
-    height: 60px;
-  }
-}
-
-/* Form Styling */
-.v-text-field {
-  margin-bottom: 1rem;
 }
 
 .v-btn {
   text-transform: none;
   font-weight: 600;
+  letter-spacing: 0.5px;
+  border-radius: 8px;
 }
 
-/* Tüm elementler için scrollbar kaldırma */
-div,
-section,
-article,
-aside,
-nav,
-main,
-header,
-footer,
-.v-card,
-.v-card-text,
-.v-form,
-.v-tabs-window,
-.v-tabs-window-item {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-
-div::-webkit-scrollbar,
-section::-webkit-scrollbar,
-article::-webkit-scrollbar,
-.v-card::-webkit-scrollbar,
-.v-card-text::-webkit-scrollbar,
-.v-form::-webkit-scrollbar,
-.v-tabs-window::-webkit-scrollbar,
-.v-tabs-window-item::-webkit-scrollbar {
-  display: none !important;
-  width: 0px !important;
-  background: transparent !important;
-}
-
-/* Vuetify specific scrollbar kaldırma */
-.v-application--wrap {
-  overflow: hidden !important;
-}
-
-.v-main {
-  overflow: hidden !important;
+/* Responsive Design */
+@media (max-width: 960px) {
+  .right-panel {
+    align-items: flex-start;
+    padding-top: 4rem;
+  }
+  .auth-container {
+    padding: 1rem;
+  }
 }
 </style>
