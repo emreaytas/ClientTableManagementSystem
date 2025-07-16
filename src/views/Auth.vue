@@ -13,7 +13,8 @@
       <v-col cols="12" md="5" class="right-panel">
         <div class="auth-container">
           <div class="auth-header">
-            <h2 class="auth-title">Giriş yapın ya da kaydolun</h2>
+            <h2 class="auth-title">GİRİŞ YAPIN YA DA KAYDOLUN</h2>
+            <h2 class="auth-title2">HOŞ GELDİNİZ</h2>
           </div>
 
           <v-tabs v-model="currentTab" color="primary" class="auth-tabs" centered>
@@ -505,6 +506,12 @@ if (authStore.isAuthenticated) {
 
 .auth-title {
   font-size: 2rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.auth-title2 {
+  font-size: 1.5rem;
   font-weight: 600;
   color: #333;
 }
