@@ -1,18 +1,23 @@
 <template>
   <v-app>
     <!-- Navigation Bar (sadece giriş yapmış kullanıcılar için) -->
-    <v-app-bar v-if="authStore.isAuthenticated" app color="primary" dark elevation="4">
+    <v-app-bar v-if="authStore.isAuthenticated" app color="blue" dark elevation="4">
       <!-- Mobile Menu Button -->
       <v-app-bar-nav-icon
         v-if="$vuetify.display.mobile"
         @click="drawer = !drawer"
       ></v-app-bar-nav-icon>
-
+      <v-img
+        src="/icons/logo.svg"
+        alt="Akademedya Logo"
+        class="error-logo"
+        contain
+        max-height="40"
+        max-width="40"
+        style="margin-left: 16px"
+      ></v-img>
       <!-- Logo -->
-      <v-toolbar-title class="font-weight-bold">
-        <v-icon class="mr-2">mdi-table-large</v-icon>
-        AKADEMEDYA
-      </v-toolbar-title>
+      <v-toolbar-title class="font-weight-bold"> AKADEMEDYA </v-toolbar-title>
 
       <v-spacer></v-spacer>
 
@@ -97,8 +102,6 @@
       <router-view></router-view>
     </v-main>
 
-    <!-- Footer (sadece giriş yapmamış kullanıcılar için) -->
-
     <!-- Loading Overlay -->
     <v-overlay v-if="loading" class="align-center justify-center" persistent>
       <v-progress-circular indeterminate size="64" color="primary"></v-progress-circular>
@@ -123,9 +126,6 @@ const toast = useToast()
 // Reactive Data
 const drawer = ref(false)
 const loading = ref(false)
-
-// Computed
-const currentYear = computed(() => new Date().getFullYear())
 
 const userInitials = computed(() => {
   if (!authStore.user) return 'U'
