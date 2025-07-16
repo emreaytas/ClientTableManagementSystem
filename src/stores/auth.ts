@@ -1,380 +1,137 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import axios from 'axios'
-
-// API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7018/api'
-
-// Type definitions
-interface User {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
-  userName: string
-  emailConfirmed: boolean
-  isEmailConfirmed: boolean
-  createdAt?: string
-  updatedAt?: string
-}
-
-interface LoginRequest {
-  userName: string
-  password: string
-}
-
-export interface RegisterRequest {
-  firstName: string
-  lastName: string
-  email: string
-  userName: string
-  password: string
-  confirmPassword?: string
-}
-
-interface AuthResponse {
-  success: boolean
-  message: string
-  token?: string
-  user?: User
-  errors?: Record<string, string[]>
-}
-
-// Axios interceptor setup
-const setupAxiosInterceptors = (token: string | null) => {
-  if (token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-  } else {
-    delete axios.defaults.headers.common['Authorization']
-  }
-}
+import { ref, computed } from 'vue' // ref ve computed kullanılıyor, readonly'ye ihtiyaç yok gibi
+import router from '@/router' // Yönlendirme için router'ı import edin
+// import api from '@/api'; // API servisiniz varsa bunu kullanın
 
 export const useAuthStore = defineStore('auth', () => {
-  // State
-  const user = ref<User | null>(null)
+  // Durumlar (State)
+  const user = ref<any | null>(null)
   const token = ref<string | null>(localStorage.getItem('token'))
-  const loading = ref(false)
-
-  // Computed
   const isAuthenticated = computed(() => !!token.value && !!user.value)
-  const userName = computed(() => user.value?.userName || '')
+  const loading = ref(false) // Yüklenme durumu
+  const error = ref<string | null>(null) // Hata mesajı
+
+  // Getters (Computed Properties)
   const fullName = computed(() => {
-    if (!user.value) return ''
-    return `${user.value.firstName} ${user.value.lastName}`.trim()
+    if (!user.value) return 'Misafir'
+    return `${user.value.firstName || ''} ${user.value.lastName || ''}`.trim()
   })
+  const userName = computed(() => user.value?.userName || 'Misafir')
 
-  // Actions
-  const setToken = (newToken: string | null) => {
-    token.value = newToken
-    if (newToken) {
-      localStorage.setItem('token', newToken)
-      setupAxiosInterceptors(newToken)
-    } else {
-      localStorage.removeItem('token')
-      setupAxiosInterceptors(null)
-    }
-  }
-
-  const setUser = (userData: User | null) => {
-    user.value = userData
-    if (userData) {
-      localStorage.setItem('user', JSON.stringify(userData))
-    } else {
-      localStorage.removeItem('user')
-    }
-  }
-
-  const login = async (credentials: LoginRequest): Promise<AuthResponse> => {
+  // Aksiyonlar (Actions)
+  const login = async (credentials: any) => {
     loading.value = true
+    error.value = null
     try {
-      const response = await axios.post<AuthResponse>(`${API_BASE_URL}/auth/login`, credentials, {
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      })
+      // Gerçek API çağrısı yerine mock data
+      // const response = await api.post('/auth/login', credentials);
+      // if (response.data.success) {
+      //   token.value = response.data.token;
+      //   user.value = response.data.user;
+      //   localStorage.setItem('token', response.data.token);
+      //   return { success: true, message: response.data.message };
+      // } else {
+      //   return { success: false, message: response.data.message };
+      // }
 
-      const { data } = response
-
-      if (data.success && data.token && data.user) {
-        setToken(data.token)
-        setUser(data.user)
-
-        console.log('Login successful:', {
-          user: data.user.userName,
-          tokenLength: data.token.length,
-        })
-      }
-
-      return data
-    } catch (error: any) {
-      console.error('Login error:', error)
-
-      // API'den gelen hata mesajını kullan
-      if (error.response?.data?.message) {
-        return {
-          success: false,
-          message: error.response.data.message,
+      // ÖRNEK MOCK LOGİN:
+      if (credentials.userName === 'test' && credentials.password === '123456') {
+        const mockToken = 'mock_jwt_token_12345'
+        const mockUser = {
+          firstName: 'Deneme',
+          lastName: 'Kullanıcı',
+          email: 'test@example.com',
+          userName: 'test',
+          id: '1',
         }
+        token.value = mockToken
+        user.value = mockUser
+        localStorage.setItem('token', mockToken)
+        localStorage.setItem('user', JSON.stringify(mockUser)) // Kullanıcı bilgisini de kaydet
+        return { success: true, message: 'Giriş başarılı!' }
+      } else {
+        return { success: false, message: 'Kullanıcı adı veya şifre yanlış.' }
       }
-
-      // HTTP status code'a göre mesaj ver
-      if (error.response?.status === 401) {
-        return {
-          success: false,
-          message: 'Kullanıcı adı veya şifre hatalı',
-        }
-      }
-
-      if (error.response?.status === 400) {
-        return {
-          success: false,
-          message: 'Geçersiz giriş bilgileri',
-        }
-      }
-
-      if (error.code === 'ECONNABORTED') {
-        return {
-          success: false,
-          message: 'Bağlantı zaman aşımına uğradı',
-        }
-      }
-
-      if (!error.response) {
-        return {
-          success: false,
-          message: 'Sunucuya bağlanılamıyor. İnternet bağlantınızı kontrol edin.',
-        }
-      }
-
-      return {
-        success: false,
-        message: 'Giriş yapılırken beklenmeyen bir hata oluştu',
-      }
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Giriş başarısız!'
+      return { success: false, message: error.value }
     } finally {
       loading.value = false
     }
   }
 
-  const register = async (userData: RegisterRequest): Promise<AuthResponse> => {
+  const register = async (userData: any) => {
     loading.value = true
+    error.value = null
     try {
-      // Backend'in beklediği format
-      const requestData = {
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        email: userData.email,
-        userName: userData.userName,
-        password: userData.password,
-        confirmPassword: userData.confirmPassword,
-      }
+      // Gerçek API çağrısı yerine mock data
+      // const response = await api.post('/auth/register', userData);
+      // if (response.data.success) {
+      //   return { success: true, message: response.data.message };
+      // } else {
+      //   return { success: false, message: response.data.message };
+      // }
 
-      const response = await axios.post<AuthResponse>(
-        `${API_BASE_URL}/auth/register`,
-        requestData,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-        },
-      )
-
-      console.log('Registration successful:', response.data.message)
-      return response.data
-    } catch (error: any) {
-      console.error('Register error:', error)
-
-      // API'den gelen hata mesajını kullan
-      if (error.response?.data?.message) {
-        return {
-          success: false,
-          message: error.response.data.message,
-        }
-      }
-
-      // Validation errors - Backend ModelState errors
-      if (error.response?.data?.errors) {
-        const errors = error.response.data.errors
-        const errorMessages: string[] = []
-
-        // Backend validation hatalarını Türkçe'ye çevir
-        Object.keys(errors).forEach((field) => {
-          const fieldErrors = errors[field]
-          fieldErrors.forEach((error: string) => {
-            if (error.includes('ConfirmPassword') && error.includes('required')) {
-              errorMessages.push('Şifre tekrarı alanı zorunludur')
-            } else if (error.includes('do not match')) {
-              errorMessages.push('Şifreler eşleşmiyor')
-            } else if (error.includes('Password') && error.includes('required')) {
-              errorMessages.push('Şifre alanı zorunludur')
-            } else if (error.includes('Email') && error.includes('required')) {
-              errorMessages.push('E-posta alanı zorunludur')
-            } else if (error.includes('FirstName') && error.includes('required')) {
-              errorMessages.push('Ad alanı zorunludur')
-            } else if (error.includes('LastName') && error.includes('required')) {
-              errorMessages.push('Soyad alanı zorunludur')
-            } else if (error.includes('UserName') && error.includes('required')) {
-              errorMessages.push('Kullanıcı adı alanı zorunludur')
-            } else {
-              errorMessages.push(error)
-            }
-          })
-        })
-
-        return {
-          success: false,
-          message: errorMessages.join(', '),
-        }
-      }
-
-      if (error.response?.status === 400) {
-        return {
-          success: false,
-          message: 'Kayıt bilgilerinde hata var. Lütfen kontrol edin.',
-        }
-      }
-
-      return {
-        success: false,
-        message: 'Kayıt olurken bir hata oluştu',
-      }
+      // ÖRNEK MOCK KAYIT:
+      console.log('Registering user:', userData)
+      return { success: true, message: 'Kayıt başarılı! E-posta doğrulama linkini kontrol ediniz.' }
+    } catch (err: any) {
+      error.value = err.response?.data?.message || 'Kayıt başarısız!'
+      return { success: false, message: error.value }
     } finally {
       loading.value = false
     }
   }
 
   const logout = () => {
-    console.log('User logged out:', user.value?.userName)
-    setToken(null)
-    setUser(null)
+    token.value = null
+    user.value = null
+    localStorage.removeItem('token')
+    localStorage.removeItem('user') // Kullanıcı bilgisini de temizle
+    router.push('/auth') // Çıkış yaptıktan sonra login sayfasına yönlendir
   }
 
-  const confirmEmail = async (token: string, email: string): Promise<AuthResponse> => {
-    try {
-      const response = await axios.get<AuthResponse>(`${API_BASE_URL}/auth/confirm-email`, {
-        params: { token, email },
-      })
+  // YENİ EKLENECEK KISIM: initializeAuth fonksiyonu
+  const initializeAuth = async () => {
+    const storedToken = localStorage.getItem('token')
+    const storedUser = localStorage.getItem('user') // Kullanıcı bilgisini de al
 
-      return response.data
-    } catch (error: any) {
-      console.error('Email confirmation error:', error)
-      return {
-        success: false,
-        message: error.response?.data?.message || 'E-posta doğrulama başarısız',
-      }
-    }
-  }
-
-  const forgotPassword = async (email: string): Promise<AuthResponse> => {
-    try {
-      const response = await axios.post<AuthResponse>(`${API_BASE_URL}/auth/forgot-password`, {
-        email,
-      })
-
-      return response.data
-    } catch (error: any) {
-      console.error('Forgot password error:', error)
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Şifre sıfırlama başarısız',
-      }
-    }
-  }
-
-  const refreshUserData = async (): Promise<void> => {
-    if (!token.value) return
-
-    try {
-      // Kullanıcı bilgilerini güncelle (eğer backend'de endpoint varsa)
-      // const response = await axios.get<User>(`${API_BASE_URL}/auth/me`)
-      // setUser(response.data)
-    } catch (error) {
-      console.error('User refresh error:', error)
-      // Token geçersizse logout yap
-      logout()
-    }
-  }
-
-  const initializeAuth = () => {
-    const savedToken = localStorage.getItem('token')
-    const savedUser = localStorage.getItem('user')
-
-    if (savedToken && savedUser) {
+    if (storedToken && storedUser) {
       try {
-        const parsedUser = JSON.parse(savedUser)
-        setToken(savedToken)
-        setUser(parsedUser)
+        // Token'ı ve kullanıcı bilgisini yükle
+        token.value = storedToken
+        user.value = JSON.parse(storedUser)
 
-        console.log('Auth initialized:', {
-          user: parsedUser.userName,
-          tokenExists: !!savedToken,
-        })
-      } catch (error) {
-        console.error('Auth initialization error:', error)
-        logout()
+        // OPTIONAL: Burada sunucuya token'ın geçerliliğini doğrulayan bir çağrı yapabilirsiniz.
+        // Örneğin: await api.get('/auth/verify-token');
+        // Eğer doğrulama başarısız olursa logout yapın.
+        console.log('Oturum token ile başlatıldı.')
+      } catch (err) {
+        console.error('Oturum başlatılırken hata:', err)
+        logout() // Hata olursa oturumu kapat
       }
+    } else {
+      logout() // Token veya kullanıcı bilgisi yoksa oturumu kapat
     }
   }
 
-  // JWT Token'ın geçerlilik süresini kontrol et
-  const isTokenExpired = (): boolean => {
-    if (!token.value) return true
-
-    try {
-      const payload = JSON.parse(atob(token.value.split('.')[1]))
-      const currentTime = Date.now() / 1000
-      return payload.exp < currentTime
-    } catch (error) {
-      return true
-    }
+  const checkTokenValidity = () => {
+    // Basit bir token geçerlilik kontrolü (gerçekte JWT'nin süresini kontrol etmelisiniz)
+    return !!token.value // Şimdilik sadece token'ın varlığını kontrol ediyoruz
   }
-
-  // Token geçerlilik kontrolü
-  const checkTokenValidity = (): boolean => {
-    if (isTokenExpired()) {
-      console.log('Token expired, logging out')
-      logout()
-      return false
-    }
-    return true
-  }
-
-  const resendEmailConfirmation = async (email: string): Promise<AuthResponse> => {
-    try {
-      const response = await axios.post<AuthResponse>(
-        `${API_BASE_URL}/auth/resend-email-confirmation`,
-        {
-          email,
-        },
-      )
-
-      return response.data
-    } catch (error: any) {
-      console.error('Resend email confirmation error:', error)
-      return {
-        success: false,
-        message: error.response?.data?.message || 'E-posta tekrar gönderme işlemi başarısız',
-      }
-    }
-  }
-
-  // Initialize axios interceptors
-  setupAxiosInterceptors(token.value)
 
   return {
-    user: readonly(user),
-    token: readonly(token),
-    loading: readonly(loading),
+    user,
+    token,
     isAuthenticated,
+    loading,
+    error,
+    fullName,
+    userName,
     login,
     register,
     logout,
-    confirmEmail,
-    resendEmailConfirmation,
-    forgotPassword,
-    refreshUserData,
-    initializeAuth,
-    isTokenExpired,
+    initializeAuth, // Burayı eklemeyi unutmayın!
+    checkTokenValidity,
   }
 })
