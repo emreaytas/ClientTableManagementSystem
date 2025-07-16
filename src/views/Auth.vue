@@ -1,7 +1,6 @@
 <template>
   <v-app>
     <v-row no-gutters class="auth-wrapper">
-      <!-- Left Panel: Branding -->
       <v-col cols="12" md="7" class="left-panel d-none d-md-flex">
         <div class="left-panel-content">
           <img src="/icons/logo.svg" alt="AKADEMEDYA" class="brand-logo" />
@@ -11,7 +10,6 @@
         </div>
       </v-col>
 
-      <!-- Right Panel: Auth Form -->
       <v-col cols="12" md="5" class="right-panel">
         <div class="auth-container">
           <div class="auth-header">
@@ -41,7 +39,6 @@
           </v-alert>
 
           <v-tabs-window v-model="currentTab" class="auth-forms">
-            <!-- Login Form -->
             <v-tabs-window-item value="login">
               <v-card flat class="auth-card">
                 <v-card-text>
@@ -55,6 +52,9 @@
                       class="mb-4"
                       hide-details="auto"
                       density="compact"
+                      :loading="usernameCheck.loading"
+                      :error-messages="usernameCheck.error"
+                      :success-messages="usernameCheck.success"
                     />
 
                     <v-text-field
@@ -88,7 +88,6 @@
               </v-card>
             </v-tabs-window-item>
 
-            <!-- Register Form -->
             <v-tabs-window-item value="register">
               <v-card flat class="auth-card">
                 <v-card-text>
@@ -126,6 +125,9 @@
                       class="mt-4"
                       hide-details="auto"
                       density="compact"
+                      :loading="emailCheck.loading"
+                      :error-messages="emailCheck.error"
+                      :success-messages="emailCheck.success"
                     />
 
                     <v-text-field
@@ -137,6 +139,9 @@
                       class="mt-4"
                       hide-details="auto"
                       density="compact"
+                      :loading="usernameCheck.loading"
+                      :error-messages="usernameCheck.error"
+                      :success-messages="usernameCheck.success"
                     />
 
                     <v-text-field
@@ -193,9 +198,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue' // watch eklendi
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import axios from 'axios' // axios veya kullandığınız http istemcisini import edin
 
 // Router
 const router = useRouter()
@@ -247,6 +253,110 @@ const rules = computed(() => ({
   passwordMatch: (value: string) => value === registerData.password || 'Şifreler eşleşmiyor',
 }))
 
+// --- YENİ EKLENEN ANLIK KONTROL MANTIĞI ---
+
+// Anlık validasyon durumlarını tutmak için reaktif nesneler
+const usernameCheck = reactive({
+  loading: false,
+  error: '',
+  success: '',
+})
+
+const emailCheck = reactive({
+  loading: false,
+  error: '',
+  success: '',
+})
+
+let debounceTimer: number
+
+// Kullanıcı adı ve e-posta alanlarındaki değişiklikleri izle
+watch([() => loginData.userName, () => registerData.userName], ([loginUser, registerUser]) => {
+  const newUsername = currentTab.value === 'login' ? loginUser : registerUser
+
+  clearTimeout(debounceTimer)
+  usernameCheck.error = ''
+  usernameCheck.success = ''
+
+  if (!newUsername || newUsername.length < 3) {
+    return // 3 karakterden kısaysa kontrol etme
+  }
+
+  usernameCheck.loading = true
+  debounceTimer = setTimeout(async () => {
+    try {
+      const response = await axios.get(`/api/auth/check-username/${newUsername}`)
+      if (currentTab.value === 'login') {
+        // Giriş formunda, kullanıcının OLMAMASI bir hatadır.
+        if (!response.data.isTaken) {
+          usernameCheck.error = 'Böyle bir kullanıcı bulunamadı.'
+        } else {
+          usernameCheck.success = 'Kullanıcı adı geçerli.'
+        }
+      } else {
+        // Register form
+        // Kayıt formunda, kullanıcının ZATEN VAR OLMASI bir hatadır.
+        if (response.data.isTaken) {
+          usernameCheck.error = 'Bu kullanıcı adı zaten kullanılıyor.'
+        } else {
+          usernameCheck.success = 'Kullanıcı adı uygun.'
+        }
+      }
+    } catch (err) {
+      console.error('Kullanıcı adı kontrol hatası:', err)
+      usernameCheck.error = 'Kontrol sırasında bir hata oluştu.'
+    } finally {
+      usernameCheck.loading = false
+    }
+  }, 500) // Kullanıcı yazmayı bıraktıktan 500ms sonra kontrol et
+})
+
+watch(
+  () => registerData.email,
+  (newEmail) => {
+    clearTimeout(debounceTimer)
+    emailCheck.error = ''
+    emailCheck.success = ''
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!newEmail || !emailPattern.test(newEmail)) return
+
+    emailCheck.loading = true
+    debounceTimer = setTimeout(async () => {
+      try {
+        const encodedEmail = encodeURIComponent(newEmail)
+        const response = await axios.get(`/api/auth/check-email/${encodedEmail}`)
+        if (response.data.isTaken) {
+          emailCheck.error = 'Bu e-posta adresi zaten kullanılıyor.'
+        } else {
+          emailCheck.success = 'E-posta adresi uygun.'
+        }
+      } catch (err) {
+        console.error('E-posta kontrol hatası:', err)
+        emailCheck.error = 'Kontrol sırasında bir hata oluştu.'
+      } finally {
+        emailCheck.loading = false
+      }
+    }, 500)
+  },
+)
+
+// Sekme değiştirildiğinde validasyon mesajlarını temizle
+watch(
+  () => currentTab.value,
+  () => {
+    usernameCheck.error = ''
+    usernameCheck.success = ''
+    emailCheck.error = ''
+    emailCheck.success = ''
+    // Formlardaki verileri de temizleyebilirsiniz (isteğe bağlı)
+    // Object.assign(loginData, { userName: '', password: '' });
+    // Object.assign(registerData, { /* ... */ });
+  },
+)
+
+// --- ANLIK KONTROL MANTIĞI SONU ---
+
 // Methods
 const showAlert = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
   alert.type = type
@@ -262,6 +372,11 @@ const hideAlert = () => {
 }
 
 const handleLogin = async () => {
+  // Anlık validasyon hatası varsa formu gönderme
+  if (usernameCheck.error) {
+    showAlert('error', usernameCheck.error)
+    return
+  }
   const { valid } = await loginForm.value.validate()
   if (!valid) return
 
@@ -284,6 +399,11 @@ const handleLogin = async () => {
 }
 
 const handleRegister = async () => {
+  // Anlık validasyon hatası varsa formu gönderme
+  if (usernameCheck.error || emailCheck.error) {
+    showAlert('error', 'Lütfen formdaki hataları düzeltin.')
+    return
+  }
   const { valid } = await registerForm.value.validate()
   if (!valid) return
 
