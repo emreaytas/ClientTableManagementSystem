@@ -201,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import apiClient from '@/plugins/axios'
@@ -255,6 +255,34 @@ const emailCheck = reactive({
   loading: false,
   error: '',
   success: '',
+})
+
+onMounted(() => {
+  const verified = route.query.verified
+  const error = route.query.error
+
+  if (verified === 'true') {
+    // Başarılı e-posta doğrulama
+    showAlert('success', 'E-posta adresiniz başarıyla doğrulandı! Artık giriş yapabilirsiniz.')
+    currentTab.value = 'login' // Login tab'ına geç
+  } else if (verified === 'false') {
+    // Başarısız e-posta doğrulama
+    showAlert('error', 'E-posta doğrulama işlemi başarısız.')
+  } else if (error === 'invalid-confirmation-link') {
+    // Geçersiz link
+    showAlert('error', 'Geçersiz doğrulama linki.')
+  }
+
+  // URL'yi temizle (parametreleri kaldır)
+  if (verified || error) {
+    router.replace('/auth')
+  }
+
+  // Check if user is already authenticated
+  if (authStore.isAuthenticated) {
+    const redirectPath = (route.query.redirect as string) || '/dashboard'
+    router.push(redirectPath)
+  }
 })
 
 // Computed validation rules
