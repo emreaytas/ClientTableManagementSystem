@@ -53,7 +53,7 @@
           </v-card-text>
 
           <!-- Empty State -->
-          <v-card-text v-else-if="recentTables.length === 0" class="text-center py-16">
+          <v-card-text v-else-if="tables.length === 0" class="text-center py-16">
             <div class="empty-state-icon mb-6">
               <v-icon size="80" color="grey-lighten-2">mdi-table-off</v-icon>
             </div>
@@ -77,7 +77,7 @@
           <!-- Tables List -->
           <v-card-text v-else class="pa-0">
             <v-list lines="three" class="py-0">
-              <template v-for="(table, index) in recentTables" :key="table.id">
+              <template v-for="(table, index) in tables" :key="table.id">
                 <v-list-item @click="viewTableData(table.id)" class="table-item pa-6">
                   <template v-slot:prepend>
                     <v-avatar size="56" :color="getTableColor(index)" variant="tonal">
@@ -90,35 +90,45 @@
                   </v-list-item-title>
 
                   <v-list-item-subtitle class="text-body-2">
-                    <div class="d-flex align-center mb-1">
-                      <v-icon icon="mdi-calendar" size="16" class="mr-1"></v-icon>
-                      {{ formatDate(table.createdAt) }}
+                    <div class="d-flex align-center mb-2">
+                      <v-icon icon="mdi-text-long" size="16" class="mr-1"></v-icon>
+                      <span class="text-truncate">{{
+                        table.description || 'Açıklama bulunmuyor'
+                      }}</span>
                     </div>
-                    <div class="d-flex align-center">
-                      <v-chip
-                        size="small"
-                        :color="getRecordCountColor(table.recordCount || 0)"
-                        variant="flat"
-                        class="mr-2"
-                      >
-                        <v-icon icon="mdi-database" size="14" class="mr-1"></v-icon>
-                        {{ table.recordCount || 0 }} kayıt
-                      </v-chip>
-                      <v-chip
-                        size="small"
-                        :color="table.isActive ? 'success' : 'warning'"
-                        variant="flat"
-                      >
-                        {{ table.isActive ? 'Aktif' : 'Pasif' }}
-                      </v-chip>
+                    <div class="d-flex align-center justify-space-between">
+                      <div class="d-flex align-center">
+                        <v-icon icon="mdi-calendar" size="16" class="mr-1"></v-icon>
+                        {{ formatDate(table.createdAt) }}
+                      </div>
+                      <div class="d-flex align-center ga-2">
+                        <v-chip size="small" color="info" variant="flat">
+                          <v-icon icon="mdi-table-column" size="14" class="mr-1"></v-icon>
+                          {{ table.columns.length }} sütun
+                        </v-chip>
+                      </div>
                     </div>
                   </v-list-item-subtitle>
 
                   <template v-slot:append>
-                    <v-btn icon="mdi-chevron-right" variant="text" color="grey"></v-btn>
+                    <div class="d-flex align-center">
+                      <v-btn
+                        icon="mdi-pencil"
+                        size="small"
+                        color="primary"
+                        variant="text"
+                        @click.stop="editTable(table.id)"
+                      ></v-btn>
+                      <v-btn
+                        icon="mdi-chevron-right"
+                        size="small"
+                        color="grey"
+                        variant="text"
+                      ></v-btn>
+                    </div>
                   </template>
                 </v-list-item>
-                <v-divider v-if="index < recentTables.length - 1"></v-divider>
+                <v-divider v-if="index < tables.length - 1"></v-divider>
               </template>
             </v-list>
 
@@ -145,47 +155,87 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+
 import { useToast } from 'vue-toastification'
 import { apiService } from '@/services/api'
 
-// Interfaces - Backend'inizle uyumlu
+// Interfaces - Backend'den gelen API yanıtına uygun
 interface ApiTable {
   id: number
   tableName: string
   description: string
+  userId: number
   createdAt: string
-  isActive: boolean
-  recordCount?: number
+  updatedAt: string | null
   columns: ApiColumn[]
 }
 
 interface ApiColumn {
   id: number
   columnName: string
-  dataType: number // 0=VARCHAR, 1=INT, 2=DECIMAL, 3=DATETIME
+  dataType: number // 1=string, 2=int, 3=decimal, 4=datetime
   isRequired: boolean
   displayOrder: number
   defaultValue: string
+  createdAt: string
+  updatedAt: string | null
 }
 
 // Composables
 const router = useRouter()
-const authStore = useAuthStore()
+
 const toast = useToast()
 
 // Reactive Data
 const loading = ref(true)
 const showWelcomeMessage = ref(false)
+const tables = ref<ApiTable[]>([])
 const stats = ref({
   totalTables: 0,
   totalRecords: 0,
   tablesThisMonth: 0,
   activeTables: 0,
 })
-const recentTables = ref<ApiTable[]>([])
+
+// Methods
+const loadDashboardData = async () => {
+  try {
+    loading.value = true
+
+    // API'den tabloları al
+    const response = await apiService.getAllTables()
+
+    if (response.success) {
+      tables.value = response.data
+
+      // İstatistikleri hesapla
+      const now = new Date()
+      const currentMonth = now.getMonth()
+      const currentYear = now.getFullYear()
+
+      stats.value = {
+        totalTables: response.data.length,
+        totalRecords: 0, // Bu bilgi şu an API'de yok, sonradan eklenebilir
+        tablesThisMonth: response.data.filter((table) => {
+          const createdDate = new Date(table.createdAt)
+          return (
+            createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear
+          )
+        }).length,
+        activeTables: response.data.length, // Şu an tüm tablolar aktif varsayılıyor
+      }
+    } else {
+      toast.error(response.message || 'Tablolar yüklenirken bir hata oluştu')
+    }
+  } catch (error) {
+    console.error('Dashboard data loading error:', error)
+    toast.error('Veriler yüklenirken bir hata oluştu')
+  } finally {
+    loading.value = false
+  }
+}
 
 const createTable = () => {
   router.push('/tables/new')
@@ -199,11 +249,8 @@ const viewTableData = (tableId: number) => {
   router.push(`/tables/${tableId}/data`)
 }
 
-const getRecordCountColor = (count: number): string => {
-  if (count === 0) return 'grey-lighten-1'
-  if (count < 10) return 'warning'
-  if (count < 50) return 'info'
-  return 'success'
+const editTable = (tableId: number) => {
+  router.push(`/tables/${tableId}/edit`)
 }
 
 const getTableColor = (index: number): string => {
@@ -221,6 +268,8 @@ const formatDate = (dateString: string): string => {
 
 // Lifecycle
 onMounted(async () => {
+  await loadDashboardData()
+
   // Hoş geldin mesajını göster
   await nextTick()
   showWelcomeMessage.value = true
