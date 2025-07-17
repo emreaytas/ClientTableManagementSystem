@@ -9,7 +9,7 @@
             <div class="d-flex align-center justify-space-between w-100">
               <div class="d-flex align-center">
                 <div>
-                  <h1 class="text-h4 font-weight-bold text-gray mb-1">MEVCUT TABLOLAR</h1>
+                  <h1 class="text-h4 font-weight-bold text-gray mb-1">MEVCUT TABLOLARINIZ</h1>
                 </div>
               </div>
 
