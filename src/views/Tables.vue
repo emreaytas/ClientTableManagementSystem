@@ -188,24 +188,50 @@
               </v-card-text>
 
               <v-card-actions>
-                <v-btn
-                  color="primary"
-                  variant="text"
-                  prepend-icon="mdi-database-eye"
-                  @click="viewTableData(table.id)"
-                  size="small"
-                >
-                  Veriler
-                </v-btn>
-                <v-btn
-                  color="info"
-                  variant="text"
-                  prepend-icon="mdi-pencil"
-                  @click="editTable(table.id)"
-                  size="small"
-                >
-                  Düzenle
-                </v-btn>
+                <!-- Action buttons with tooltips -->
+                <div class="d-flex ga-1">
+                  <!-- View Data Button -->
+                  <v-tooltip text="Verileri Görüntüle">
+                    <template #activator="{ props }">
+                      <v-btn
+                        v-bind="props"
+                        icon="mdi-database-eye"
+                        size="small"
+                        color="info"
+                        variant="text"
+                        @click="viewTableData(table.id)"
+                      ></v-btn>
+                    </template>
+                  </v-tooltip>
+
+                  <!-- Edit Button -->
+                  <v-tooltip text="Düzenle">
+                    <template #activator="{ props }">
+                      <v-btn
+                        v-bind="props"
+                        icon="mdi-pencil"
+                        size="small"
+                        color="primary"
+                        variant="text"
+                        @click="editTable(table.id)"
+                      ></v-btn>
+                    </template>
+                  </v-tooltip>
+
+                  <!-- Delete Button -->
+                  <v-tooltip text="Sil">
+                    <template #activator="{ props }">
+                      <v-btn
+                        v-bind="props"
+                        icon="mdi-delete"
+                        size="small"
+                        color="error"
+                        variant="text"
+                        @click="confirmDelete(table)"
+                      ></v-btn>
+                    </template>
+                  </v-tooltip>
+                </div>
 
                 <v-spacer></v-spacer>
 
@@ -544,6 +570,11 @@ onMounted(() => {
 
 .v-expansion-panel-text :deep(.v-expansion-panel-text__wrapper) {
   padding: 8px 0;
+}
+
+/* Action buttons styling */
+.d-flex.ga-1 {
+  gap: 4px;
 }
 
 /* Responsive adjustments */

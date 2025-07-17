@@ -59,6 +59,7 @@ export interface ApiColumn {
   isRequired: boolean
   displayOrder: number
   defaultValue: string
+  maxLength?: number
 }
 
 // API Request Interfaces (for creating/updating)
@@ -76,8 +77,46 @@ export interface CreateColumnRequest {
   defaultValue: string
 }
 
-export interface UpdateTableRequest extends CreateTableRequest {
-  id: number
+// Update Table Request interface
+export interface UpdateTableRequest {
+  tableId: number
+  tableName?: string
+  description?: string
+  columns: UpdateColumnRequest[]
+}
+
+export interface UpdateColumnRequest {
+  columnId: number
+  columnName: string
+  dataType: number
+  isRequired: boolean
+  displayOrder: number
+  defaultValue?: string
+  forceUpdate?: boolean
+}
+
+// Table Data Interfaces (matching backend TableDataResponse)
+export interface TableData {
+  tableId: number
+  tableName: string
+  columns: ApiColumn[] // Updated to use ApiColumn
+  rows: TableRow[]
+}
+
+export interface TableRow {
+  rowIdentifier: number
+  values: Record<number, string> // Column ID to value mapping
+}
+
+export interface AddTableDataRequest {
+  tableId: number
+  columnValues: Record<number, string> // Column ID to value mapping
+}
+
+export interface UpdateTableDataRequest {
+  tableId: number
+  rowId: number
+  columnValues: Record<number, string> // Column ID to value mapping
 }
 
 // Legacy interfaces for backward compatibility
@@ -101,29 +140,6 @@ export interface Column {
   isUnique: boolean
   precision?: number
   scale?: number
-}
-
-export interface TableData {
-  tableId: number
-  tableName: string
-  columns: Column[]
-  rows: TableRow[]
-}
-
-export interface TableRow {
-  rowIdentifier: number
-  values: Record<number, string>
-}
-
-export interface AddTableDataRequest {
-  tableId: number
-  columnValues: Record<number, string>
-}
-
-export interface UpdateTableDataRequest {
-  tableId: number
-  rowId: number
-  columnValues: Record<number, string>
 }
 
 // Data Type Enums
@@ -170,10 +186,33 @@ class ApiService {
 
   async updateTable(id: number, data: UpdateTableRequest): Promise<ApiTable> {
     try {
-      const response = await apiClient.put<ApiTable>(`/Tables/${id}`, data)
-      return response.data
+      const response = await apiClient.put<{ message: string; table: ApiTable }>(
+        `/Tables/${id}`,
+        data,
+      )
+      return response.data.table
     } catch (error) {
       console.error('Error updating table:', error)
+      throw error
+    }
+  }
+
+  async validateTableChanges(tableId: number, request: UpdateTableRequest): Promise<any> {
+    try {
+      const response = await apiClient.post(`/Tables/${tableId}/validate-changes`, request)
+      return response.data
+    } catch (error) {
+      console.error('Error validating table changes:', error)
+      throw error
+    }
+  }
+
+  async getTableDDLHistory(tableId: number): Promise<any[]> {
+    try {
+      const response = await apiClient.get(`/Tables/${tableId}/ddl-history`)
+      return response.data
+    } catch (error) {
+      console.error('Error fetching DDL history:', error)
       throw error
     }
   }
@@ -187,9 +226,10 @@ class ApiService {
     }
   }
 
-  // Table Data API
+  // Table Data API - Updated with correct endpoints
   async getTableData(tableId: number): Promise<TableData> {
     try {
+      // Use TablesController endpoint for getting table data
       const response = await apiClient.get<TableData>(`/Tables/${tableId}/data`)
       return response.data
     } catch (error) {
@@ -200,6 +240,7 @@ class ApiService {
 
   async addTableData(data: AddTableDataRequest): Promise<void> {
     try {
+      // Use TableDataController endpoint
       await apiClient.post('/TableData', data)
     } catch (error) {
       console.error('Error adding table data:', error)
@@ -209,23 +250,41 @@ class ApiService {
 
   async updateTableData(data: UpdateTableDataRequest): Promise<void> {
     try {
-      await apiClient.put(`/TableData/${data.rowId}`, {
-        tableId: data.tableId,
-        columnValues: data.columnValues,
-      })
+      // Use correct TableDataController endpoint format
+      await apiClient.put(`/TableData/${data.tableId}/rows/${data.rowId}`, data.columnValues)
     } catch (error) {
       console.error('Error updating table data:', error)
       throw error
     }
   }
 
-  async deleteTableData(tableId: number, rowId: number): Promise<void> {
+  async deleteTableData(tableId: number, rowIdentifier: number): Promise<void> {
     try {
-      await apiClient.delete(`/TableData/${rowId}`, {
-        params: { tableId },
-      })
+      // Use correct TableDataController endpoint format
+      await apiClient.delete(`/TableData/${tableId}/rows/${rowIdentifier}`)
     } catch (error) {
       console.error('Error deleting table data:', error)
+      throw error
+    }
+  }
+
+  // Additional utility endpoints
+  async getTableSchema(tableId: number): Promise<any> {
+    try {
+      const response = await apiClient.get(`/Tables/${tableId}/schema`)
+      return response.data
+    } catch (error) {
+      console.error('Error fetching table schema:', error)
+      throw error
+    }
+  }
+
+  async getTableInfo(tableId: number): Promise<any> {
+    try {
+      const response = await apiClient.get(`/Tables/${tableId}/info`)
+      return response.data
+    } catch (error) {
+      console.error('Error fetching table info:', error)
       throw error
     }
   }
@@ -315,7 +374,7 @@ export const handleApiError = (error: any, customMessage?: string) => {
   toast.error(fallbackMessage)
 }
 
-// Data type conversion helpers
+// Data type conversion and utility helpers
 export const convertDataTypeToString = (dataType: number): string => {
   switch (dataType) {
     case ColumnDataType.VARCHAR:
@@ -346,6 +405,89 @@ export const convertStringToDataType = (type: string): ColumnDataType => {
   }
 }
 
+export const getDataTypeName = (dataType: number): string => {
+  switch (dataType) {
+    case 0:
+      return 'VARCHAR'
+    case 1:
+      return 'INT'
+    case 2:
+      return 'DECIMAL'
+    case 3:
+      return 'DATETIME'
+    default:
+      return 'UNKNOWN'
+  }
+}
+
+export const getDataTypeColor = (dataType: number): string => {
+  switch (dataType) {
+    case 0:
+      return 'blue' // VARCHAR
+    case 1:
+      return 'green' // INT
+    case 2:
+      return 'orange' // DECIMAL
+    case 3:
+      return 'purple' // DATETIME
+    default:
+      return 'grey'
+  }
+}
+
+export const formatCellValue = (value: any, dataType: number): string => {
+  if (!value) return '-'
+
+  switch (dataType) {
+    case 3: // DATETIME
+      try {
+        return new Date(value).toLocaleString('tr-TR')
+      } catch {
+        return value
+      }
+    case 2: // DECIMAL
+      try {
+        return parseFloat(value).toFixed(2)
+      } catch {
+        return value
+      }
+    case 1: // INT
+      return value.toString()
+    default: // VARCHAR
+      return value.toString()
+  }
+}
+
+export const getColumnWidth = (dataType: number): number => {
+  switch (dataType) {
+    case 0:
+      return 200 // VARCHAR
+    case 1:
+      return 120 // INT
+    case 2:
+      return 150 // DECIMAL
+    case 3:
+      return 180 // DATETIME
+    default:
+      return 150
+  }
+}
+
+export const getFormFieldMdSize = (dataType: number): number => {
+  switch (dataType) {
+    case 0:
+      return 12 // VARCHAR - full width
+    case 1:
+      return 6 // INT - half width
+    case 2:
+      return 6 // DECIMAL - half width
+    case 3:
+      return 6 // DATETIME - half width
+    default:
+      return 12
+  }
+}
+
 // Convert API response to legacy Table format for backward compatibility
 export const convertApiTableToLegacy = (apiTable: ApiTable): Table => {
   return {
@@ -368,13 +510,61 @@ export const convertApiColumnToLegacy = (apiColumn: ApiColumn): Column => {
     type: convertDataTypeToString(apiColumn.dataType) as 'varchar' | 'int' | 'decimal' | 'datetime',
     isRequired: apiColumn.isRequired,
     isUnique: false, // API doesn't have this field
-    maxLength: undefined,
+    maxLength: apiColumn.maxLength,
     precision: undefined,
     scale: undefined,
   }
 }
 
-// API Endpoints constants
+// Validation helpers
+export const validateColumnValue = (value: any, column: ApiColumn): string | null => {
+  // Required field validation
+  if (column.isRequired && (!value || value === '')) {
+    return `${column.columnName} alanı zorunludur`
+  }
+
+  // Data type validation
+  switch (column.dataType) {
+    case 1: // INT
+      if (value && isNaN(parseInt(value))) {
+        return `${column.columnName} sayısal bir değer olmalıdır`
+      }
+      break
+    case 2: // DECIMAL
+      if (value && isNaN(parseFloat(value))) {
+        return `${column.columnName} ondalıklı bir sayı olmalıdır`
+      }
+      break
+    case 3: // DATETIME
+      if (value && isNaN(Date.parse(value))) {
+        return `${column.columnName} geçerli bir tarih olmalıdır`
+      }
+      break
+  }
+
+  return null
+}
+
+// Date formatting helpers
+export const formatDate = (dateString: string): string => {
+  if (!dateString) return '-'
+  try {
+    return new Date(dateString).toLocaleDateString('tr-TR')
+  } catch {
+    return dateString
+  }
+}
+
+export const formatDateTime = (dateString: string): string => {
+  if (!dateString) return '-'
+  try {
+    return new Date(dateString).toLocaleString('tr-TR')
+  } catch {
+    return dateString
+  }
+}
+
+// API Endpoints constants - Updated with correct paths
 export const API_ENDPOINTS = {
   // Auth endpoints
   AUTH: {
@@ -398,23 +588,26 @@ export const API_ENDPOINTS = {
     CHANGE_PASSWORD: '/user/change-password',
   },
 
-  // Table endpoints
+  // Table endpoints - Updated to match TablesController
   TABLES: {
     LIST: '/Tables',
     CREATE: '/Tables',
     GET: (id: string | number) => `/Tables/${id}`,
     UPDATE: (id: string | number) => `/Tables/${id}`,
     DELETE: (id: string | number) => `/Tables/${id}`,
+    DATA: (id: string | number) => `/Tables/${id}/data`,
     SCHEMA: (id: string | number) => `/Tables/${id}/schema`,
     INFO: (id: string | number) => `/Tables/${id}/info`,
   },
 
-  // Table Data endpoints
+  // Table Data endpoints - Updated to match TableDataController
   TABLE_DATA: {
-    GET: (tableId: string | number) => `/Tables/${tableId}/data`,
+    GET: (tableId: string | number) => `/TableData/${tableId}`,
     CREATE: '/TableData',
-    UPDATE: (rowId: string | number) => `/TableData/${rowId}`,
-    DELETE: (rowId: string | number) => `/TableData/${rowId}`,
+    UPDATE: (tableId: string | number, rowId: string | number) =>
+      `/TableData/${tableId}/rows/${rowId}`,
+    DELETE: (tableId: string | number, rowId: string | number) =>
+      `/TableData/${tableId}/rows/${rowId}`,
   },
 
   // Test endpoints

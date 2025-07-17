@@ -1,162 +1,170 @@
 <template>
   <v-container fluid>
-    <v-row>
+    <!-- Header Section -->
+    <v-row class="mb-4">
       <v-col cols="12">
-        <div class="d-flex align-center mb-6">
-          <v-btn icon="mdi-arrow-left" variant="text" @click="goBack" class="mr-3"></v-btn>
-          <div class="flex-grow-1">
-            <h1 class="text-h4 font-weight-bold">{{ tableInfo.name }}</h1>
-            <p class="text-subtitle-1 text--secondary">
-              {{ tableInfo.description }}
+        <div class="d-flex align-center justify-space-between">
+          <div>
+            <h1 class="text-h4 font-weight-bold">{{ tableInfo.tableName || 'Tablo Verileri' }}</h1>
+            <p class="text-subtitle-1 text-grey-600 mt-1">
+              {{ tableInfo.description || 'Tablo verilerini yönetin' }}
             </p>
           </div>
-          <v-btn color="primary" prepend-icon="mdi-plus" @click="openAddDialog"> Veri Ekle </v-btn>
+          <v-btn
+            color="primary"
+            prepend-icon="mdi-arrow-left"
+            variant="outlined"
+            @click="router.push('/tables')"
+          >
+            Tablolara Dön
+          </v-btn>
         </div>
       </v-col>
     </v-row>
 
-    <!-- Search and Actions -->
+    <!-- Action Bar -->
     <v-row class="mb-4">
       <v-col cols="12" md="6">
         <v-text-field
           v-model="search"
           prepend-inner-icon="mdi-magnify"
-          label="Verilerde Ara..."
+          label="Kayıtlarda ara..."
           variant="outlined"
-          density="comfortable"
+          hide-details
           clearable
         ></v-text-field>
       </v-col>
-      <v-col cols="12" md="6">
-        <div class="d-flex justify-end gap-2">
-          <v-btn variant="outlined" prepend-icon="mdi-download" @click="exportData">
-            Dışa Aktar
-          </v-btn>
-          <v-btn variant="outlined" prepend-icon="mdi-upload" @click="importData">
-            İçe Aktar
-          </v-btn>
-        </div>
+      <v-col cols="12" md="6" class="d-flex justify-end">
+        <v-btn
+          color="success"
+          prepend-icon="mdi-plus"
+          variant="elevated"
+          @click="openAddDialog"
+          :disabled="loading"
+        >
+          Yeni Kayıt
+        </v-btn>
+        <v-btn
+          color="info"
+          prepend-icon="mdi-refresh"
+          variant="outlined"
+          class="ml-2"
+          @click="loadTableData"
+          :loading="loading"
+        >
+          Yenile
+        </v-btn>
       </v-col>
     </v-row>
 
     <!-- Data Table -->
-    <v-row>
-      <v-col cols="12">
-        <v-card>
-          <v-data-table
-            v-model:search="search"
-            :headers="dynamicHeaders"
-            :items="tableData"
-            :loading="loading"
-            :items-per-page="itemsPerPage"
-            no-data-text="Bu tabloda henüz veri bulunmuyor"
-            loading-text="Veriler yükleniyor..."
+    <v-card>
+      <v-card-text class="pa-0">
+        <v-data-table
+          :headers="dynamicHeaders"
+          :items="filteredTableData"
+          :loading="loading"
+          :items-per-page="itemsPerPage"
+          :search="search"
+          item-key="rowIdentifier"
+          class="elevation-0"
+          no-data-text="Henüz veri eklenmemiş"
+          loading-text="Veriler yükleniyor..."
+        >
+          <!-- Custom column rendering -->
+          <template
+            v-for="column in tableData.columns"
+            :key="column.id"
+            #[`item.col_${column.id}`]="{ item }"
           >
-            <!-- Dynamic content for each column -->
-            <template
-              v-for="column in tableInfo.columns"
-              :key="column.name"
-              v-slot:[`item.${column.name}`]="{ item }"
-            >
-              <div v-if="column.type === 'datetime'">
-                {{ formatDateTime(item[column.name]) }}
-              </div>
-              <div v-else-if="column.type === 'decimal'">
-                {{ formatNumber(item[column.name]) }}
-              </div>
-              <div v-else>
-                {{ item[column.name] }}
-              </div>
-            </template>
+            <div class="text-truncate" style="max-width: 200px">
+              {{ formatCellValue(item.values[column.id], column.dataType) }}
+            </div>
+          </template>
 
-            <!-- Actions Column -->
-            <template v-slot:item.actions="{ item }">
-              <div class="d-flex gap-1">
-                <v-tooltip text="Düzenle">
-                  <template v-slot:activator="{ props }">
-                    <v-btn
-                      v-bind="props"
-                      icon="mdi-pencil"
-                      size="small"
-                      variant="text"
-                      color="primary"
-                      @click="editItem(item)"
-                    ></v-btn>
-                  </template>
-                </v-tooltip>
+          <!-- Actions column -->
+          <template #item.actions="{ item }">
+            <v-tooltip text="Düzenle">
+              <template #activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  icon="mdi-pencil"
+                  size="small"
+                  color="primary"
+                  variant="text"
+                  @click="openEditDialog(item)"
+                ></v-btn>
+              </template>
+            </v-tooltip>
+            <v-tooltip text="Sil">
+              <template #activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  icon="mdi-delete"
+                  size="small"
+                  color="error"
+                  variant="text"
+                  @click="openDeleteDialog(item)"
+                ></v-btn>
+              </template>
+            </v-tooltip>
+          </template>
+        </v-data-table>
+      </v-card-text>
+    </v-card>
 
-                <v-tooltip text="Sil">
-                  <template v-slot:activator="{ props }">
-                    <v-btn
-                      v-bind="props"
-                      icon="mdi-delete"
-                      size="small"
-                      variant="text"
-                      color="error"
-                      @click="confirmDelete(item)"
-                    ></v-btn>
-                  </template>
-                </v-tooltip>
-              </div>
-            </template>
-          </v-data-table>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <!-- Add/Edit Dialog -->
+    <!-- Add/Edit Data Dialog -->
     <v-dialog v-model="dataDialog" max-width="600" persistent>
       <v-card>
         <v-card-title>
-          <span class="text-h6">
-            {{ editingItem ? 'Veri Düzenle' : 'Yeni Veri Ekle' }}
-          </span>
+          <span class="text-h6">{{ editingItem ? 'Veriyi Düzenle' : 'Yeni Veri Ekle' }}</span>
         </v-card-title>
         <v-card-text>
-          <v-form ref="dataForm">
+          <v-form ref="dataForm" v-model="formValid">
             <v-row>
               <v-col
-                v-for="column in tableInfo.columns"
-                :key="column.name"
+                v-for="column in tableData.columns"
+                :key="column.id"
                 cols="12"
-                :md="column.type === 'varchar' && column.maxLength > 100 ? 12 : 6"
+                :md="getColumnMdSize(column.dataType)"
               >
-                <!-- Text Input -->
+                <!-- VARCHAR Input -->
                 <v-text-field
-                  v-if="column.type === 'varchar'"
-                  v-model="formData[column.name]"
-                  :label="`${column.name}${column.isRequired ? ' *' : ''}`"
+                  v-if="column.dataType === 0"
+                  v-model="formData[column.id]"
+                  :label="`${column.columnName}${column.isRequired ? ' *' : ''}`"
                   variant="outlined"
                   :rules="column.isRequired ? [rules.required] : []"
+                  :counter="column.maxLength"
                   :maxlength="column.maxLength"
                 ></v-text-field>
 
-                <!-- Number Input -->
+                <!-- INT Input -->
                 <v-text-field
-                  v-else-if="column.type === 'int'"
-                  v-model.number="formData[column.name]"
-                  :label="`${column.name}${column.isRequired ? ' *' : ''}`"
+                  v-else-if="column.dataType === 1"
+                  v-model.number="formData[column.id]"
+                  :label="`${column.columnName}${column.isRequired ? ' *' : ''}`"
                   variant="outlined"
                   type="number"
                   :rules="column.isRequired ? [rules.required] : []"
                 ></v-text-field>
 
-                <!-- Decimal Input -->
+                <!-- DECIMAL Input -->
                 <v-text-field
-                  v-else-if="column.type === 'decimal'"
-                  v-model.number="formData[column.name]"
-                  :label="`${column.name}${column.isRequired ? ' *' : ''}`"
+                  v-else-if="column.dataType === 2"
+                  v-model.number="formData[column.id]"
+                  :label="`${column.columnName}${column.isRequired ? ' *' : ''}`"
                   variant="outlined"
                   type="number"
                   step="0.01"
                   :rules="column.isRequired ? [rules.required] : []"
                 ></v-text-field>
 
-                <!-- DateTime Input -->
+                <!-- DATETIME Input -->
                 <v-text-field
-                  v-else-if="column.type === 'datetime'"
-                  v-model="formData[column.name]"
-                  :label="`${column.name}${column.isRequired ? ' *' : ''}`"
+                  v-else-if="column.dataType === 3"
+                  v-model="formData[column.id]"
+                  :label="`${column.columnName}${column.isRequired ? ' *' : ''}`"
                   variant="outlined"
                   type="datetime-local"
                   :rules="column.isRequired ? [rules.required] : []"
@@ -168,7 +176,7 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="grey" variant="text" @click="closeDataDialog"> İptal </v-btn>
-          <v-btn color="primary" :loading="saveLoading" @click="saveData">
+          <v-btn color="primary" :loading="saveLoading" @click="saveData" :disabled="!formValid">
             {{ editingItem ? 'Güncelle' : 'Ekle' }}
           </v-btn>
         </v-card-actions>
@@ -197,6 +205,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
+import { apiService, type TableData, type AddTableDataRequest, type ApiTable } from '@/services/api'
 
 // Composables
 const route = useRoute()
@@ -209,104 +218,145 @@ const saveLoading = ref(false)
 const deleteLoading = ref(false)
 const dataDialog = ref(false)
 const deleteDialog = ref(false)
+const formValid = ref(false)
 const search = ref('')
 const itemsPerPage = ref(15)
 const editingItem = ref<any>(null)
 const selectedItem = ref<any>(null)
 const dataForm = ref()
 
-const tableInfo = ref({
-  id: '',
-  name: '',
+// Table data from API
+const tableInfo = ref<ApiTable>({
+  id: 0,
+  tableName: '',
   description: '',
-  columns: [] as Array<{
-    name: string
-    type: string
-    maxLength?: number
-    isRequired: boolean
-    isUnique: boolean
-  }>,
+  createdAt: '',
+  columns: [],
 })
 
-const tableData = ref<any[]>([])
-const formData = ref<Record<string, any>>({})
+const tableData = ref<TableData>({
+  tableId: 0,
+  tableName: '',
+  columns: [],
+  rows: [],
+})
+
+const formData = ref<Record<number, any>>({})
 
 // Computed
-const tableId = computed(() => route.params.id as string)
+const tableId = computed(() => parseInt(route.params.id as string))
 
 const dynamicHeaders = computed(() => {
-  const headers = tableInfo.value.columns.map((column) => ({
-    title: column.name,
-    key: column.name,
+  const headers = tableData.value.columns.map((column) => ({
+    title: column.columnName,
+    key: `col_${column.id}`,
     sortable: true,
+    width: getColumnWidth(column.dataType),
   }))
 
   headers.push({
     title: 'İşlemler',
     key: 'actions',
     sortable: false,
+    width: 120,
   })
 
   return headers
 })
 
+const filteredTableData = computed(() => {
+  if (!search.value) return tableData.value.rows
+
+  const searchLower = search.value.toLowerCase()
+  return tableData.value.rows.filter((row) => {
+    return Object.values(row.values).some(
+      (value) => value && value.toString().toLowerCase().includes(searchLower),
+    )
+  })
+})
+
 // Validation Rules
 const rules = {
-  required: (value: any) => !!value || 'Bu alan zorunludur',
+  required: (value: any) => {
+    if (value === null || value === undefined || value === '') {
+      return 'Bu alan zorunludur'
+    }
+    return true
+  },
 }
 
-// Methods
+// Utility Methods
+const getColumnWidth = (dataType: number) => {
+  switch (dataType) {
+    case 0:
+      return 200 // VARCHAR
+    case 1:
+      return 120 // INT
+    case 2:
+      return 150 // DECIMAL
+    case 3:
+      return 180 // DATETIME
+    default:
+      return 150
+  }
+}
+
+const getColumnMdSize = (dataType: number) => {
+  switch (dataType) {
+    case 0:
+      return 12 // VARCHAR - full width
+    case 1:
+      return 6 // INT - half width
+    case 2:
+      return 6 // DECIMAL - half width
+    case 3:
+      return 6 // DATETIME - half width
+    default:
+      return 12
+  }
+}
+
+const formatCellValue = (value: any, dataType: number) => {
+  if (!value) return '-'
+
+  switch (dataType) {
+    case 3: // DATETIME
+      try {
+        return new Date(value).toLocaleString('tr-TR')
+      } catch {
+        return value
+      }
+    case 2: // DECIMAL
+      return parseFloat(value).toFixed(2)
+    default:
+      return value
+  }
+}
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return '-'
+  try {
+    return new Date(dateString).toLocaleDateString('tr-TR')
+  } catch {
+    return dateString
+  }
+}
+
+// Data Loading Methods
 const loadTableInfo = async () => {
   try {
-    // API call to fetch table structure
-    // const response = await api.get(`/tables/${tableId.value}`)
-    // tableInfo.value = response.data
-
-    // Mock data
-    tableInfo.value = {
-      id: tableId.value,
-      name: 'Müşteri Listesi',
-      description: 'Müşteri bilgileri ve iletişim detayları',
-      columns: [
-        { name: 'Ad', type: 'varchar', maxLength: 50, isRequired: true, isUnique: false },
-        { name: 'Soyad', type: 'varchar', maxLength: 50, isRequired: true, isUnique: false },
-        { name: 'Email', type: 'varchar', maxLength: 100, isRequired: true, isUnique: true },
-        { name: 'Yaş', type: 'int', isRequired: false, isUnique: false },
-        { name: 'Kayıt Tarihi', type: 'datetime', isRequired: true, isUnique: false },
-      ],
-    }
+    tableInfo.value = await apiService.getTable(tableId.value)
   } catch (error) {
     console.error('Table info loading error:', error)
     toast.error('Tablo bilgileri yüklenirken hata oluştu')
+    router.push('/tables')
   }
 }
 
 const loadTableData = async () => {
   loading.value = true
   try {
-    // API call to fetch table data
-    // const response = await api.get(`/tables/${tableId.value}/data`)
-    // tableData.value = response.data
-
-    // Mock data
-    tableData.value = [
-      {
-        id: 1,
-        Ad: 'Ahmet',
-        Soyad: 'Yılmaz',
-        Email: 'ahmet@example.com',
-        Yaş: 35,
-        'Kayıt Tarihi': '2024-01-15T10:30:00Z',
-      },
-      {
-        id: 2,
-        Ad: 'Fatma',
-        Soyad: 'Kaya',
-        Email: 'fatma@example.com',
-        Yaş: 28,
-        'Kayıt Tarihi': '2024-01-14T14:20:00Z',
-      },
-    ]
+    tableData.value = await apiService.getTableData(tableId.value)
   } catch (error) {
     console.error('Table data loading error:', error)
     toast.error('Tablo verileri yüklenirken hata oluştu')
@@ -315,81 +365,94 @@ const loadTableData = async () => {
   }
 }
 
+// Dialog Methods
 const openAddDialog = () => {
   editingItem.value = null
   formData.value = {}
 
   // Initialize form data with default values
-  tableInfo.value.columns.forEach((column) => {
-    formData.value[column.name] =
-      column.type === 'datetime' ? new Date().toISOString().slice(0, 16) : ''
+  tableData.value.columns.forEach((column) => {
+    formData.value[column.id] = column.dataType === 3 ? '' : ''
   })
 
   dataDialog.value = true
 }
 
-const editItem = (item: any) => {
+const openEditDialog = (item: any) => {
   editingItem.value = item
-  formData.value = { ...item }
-
-  // Format datetime for input
-  tableInfo.value.columns.forEach((column) => {
-    if (column.type === 'datetime' && formData.value[column.name]) {
-      formData.value[column.name] = new Date(formData.value[column.name]).toISOString().slice(0, 16)
-    }
-  })
-
+  formData.value = { ...item.values }
   dataDialog.value = true
+}
+
+const openDeleteDialog = (item: any) => {
+  selectedItem.value = item
+  deleteDialog.value = true
 }
 
 const closeDataDialog = () => {
   dataDialog.value = false
   editingItem.value = null
   formData.value = {}
-  dataForm.value?.reset()
+  if (dataForm.value) {
+    dataForm.value.resetValidation()
+  }
 }
 
+// CRUD Operations
 const saveData = async () => {
+  if (!dataForm.value) return
+
   const { valid } = await dataForm.value.validate()
-  if (!valid) return
+  if (!valid) {
+    toast.error('Lütfen form hatalarını düzeltin')
+    return
+  }
 
   saveLoading.value = true
   try {
+    // Prepare column values - convert keys to numbers and handle data types
+    const columnValues: Record<number, string> = {}
+    Object.entries(formData.value).forEach(([key, value]) => {
+      const columnId = parseInt(key)
+      if (value !== null && value !== undefined && value !== '') {
+        // Handle datetime format conversion
+        const column = tableData.value.columns.find((c) => c.id === columnId)
+        if (column?.dataType === 3 && value) {
+          // Convert datetime-local to ISO string
+          columnValues[columnId] = new Date(value as string).toISOString()
+        } else {
+          columnValues[columnId] = value.toString()
+        }
+      }
+    })
+
     if (editingItem.value) {
       // Update existing data
-      // await api.put(`/tables/${tableId.value}/data/${editingItem.value.id}`, formData.value)
-
-      const index = tableData.value.findIndex((item) => item.id === editingItem.value.id)
-      if (index > -1) {
-        tableData.value[index] = { ...editingItem.value, ...formData.value }
-      }
-
+      await apiService.updateTableData({
+        tableId: tableId.value,
+        rowId: editingItem.value.rowIdentifier,
+        columnValues,
+      })
       toast.success('Veri başarıyla güncellendi')
     } else {
       // Add new data
-      // const response = await api.post(`/tables/${tableId.value}/data`, formData.value)
-
-      const newItem = {
-        id: tableData.value.length + 1,
-        ...formData.value,
+      const request: AddTableDataRequest = {
+        tableId: tableId.value,
+        columnValues,
       }
-      tableData.value.push(newItem)
-
+      await apiService.addTableData(request)
       toast.success('Veri başarıyla eklendi')
     }
 
     closeDataDialog()
-  } catch (error) {
-    console.error('Data save error:', error)
-    toast.error(`Veri ${editingItem.value ? 'güncellenirken' : 'eklenirken'} hata oluştu`)
+    await loadTableData()
+  } catch (error: any) {
+    console.error('Save data error:', error)
+    const errorMessage = error.response?.data?.message || 'Veri kaydedilirken hata oluştu'
+    toast.error(errorMessage)
   } finally {
     saveLoading.value = false
   }
-}
-
-const confirmDelete = (item: any) => {
-  selectedItem.value = item
-  deleteDialog.value = true
 }
 
 const deleteData = async () => {
@@ -397,49 +460,21 @@ const deleteData = async () => {
 
   deleteLoading.value = true
   try {
-    // API call to delete data
-    // await api.delete(`/tables/${tableId.value}/data/${selectedItem.value.id}`)
-
-    const index = tableData.value.findIndex((item) => item.id === selectedItem.value.id)
-    if (index > -1) {
-      tableData.value.splice(index, 1)
-    }
-
+    await apiService.deleteTableData(tableId.value, selectedItem.value.rowIdentifier)
     toast.success('Veri başarıyla silindi')
     deleteDialog.value = false
     selectedItem.value = null
-  } catch (error) {
-    console.error('Data deletion error:', error)
-    toast.error('Veri silinirken hata oluştu')
+    await loadTableData()
+  } catch (error: any) {
+    console.error('Delete data error:', error)
+    const errorMessage = error.response?.data?.message || 'Veri silinirken hata oluştu'
+    toast.error(errorMessage)
   } finally {
     deleteLoading.value = false
   }
 }
 
-const exportData = () => {
-  // Export functionality
-  toast.info('Dışa aktarma özelliği yakında eklenecek')
-}
-
-const importData = () => {
-  // Import functionality
-  toast.info('İçe aktarma özelliği yakında eklenecek')
-}
-
-const goBack = () => {
-  router.push('/tables')
-}
-
-const formatDateTime = (value: string) => {
-  if (!value) return ''
-  return new Date(value).toLocaleString('tr-TR')
-}
-
-const formatNumber = (value: number) => {
-  if (value === null || value === undefined) return ''
-  return new Intl.NumberFormat('tr-TR').format(value)
-}
-
+// Lifecycle
 onMounted(async () => {
   await loadTableInfo()
   await loadTableData()
@@ -447,11 +482,17 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* Responsive adjustments */
-@media (max-width: 600px) {
-  .d-flex.justify-end {
-    flex-direction: column;
-    gap: 8px;
-  }
+.v-data-table {
+  background: transparent;
+}
+
+.v-data-table >>> .v-data-table__wrapper {
+  border-radius: 8px;
+}
+
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
