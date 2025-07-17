@@ -1,9 +1,10 @@
+// src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
   {
     path: '/',
-    redirect: '/auth',
+    redirect: '/dashboard', // Sisteme giriş yapılınca direkt dashboard'a yönlendir
   },
   {
     path: '/auth',
@@ -123,10 +124,13 @@ router.beforeEach(async (to, from, next) => {
       query: { redirect: to.fullPath },
     })
   } else if (requiresGuest && isAuthenticated) {
-    // Misafir gerekli ama kullanıcı giriş yapmış
-    const redirectPath = (to.query.redirect as string) || '/dashboard'
-    console.log('User already authenticated, redirecting to:', redirectPath)
-    next(redirectPath)
+    // Misafir gerekli ama kullanıcı giriş yapmış - dashboard'a yönlendir
+    console.log('User already authenticated, redirecting to dashboard')
+    next('/dashboard')
+  } else if (to.path === '/' && isAuthenticated) {
+    // Ana sayfa istendi ve kullanıcı giriş yapmış - dashboard'a yönlendir
+    console.log('Redirecting authenticated user from root to dashboard')
+    next('/dashboard')
   } else {
     next()
   }

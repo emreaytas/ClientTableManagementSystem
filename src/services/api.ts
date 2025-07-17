@@ -1,56 +1,166 @@
-// src/services/api.ts - Updated API Service with Type Imports
+// src/services/api.ts - Backend Uyumlu API Service
 
 import axios from 'axios'
-import type {
-  ApiTable,
-  ApiColumn,
-  CreateTableRequest,
-  UpdateTableRequest,
-  UpdateColumnRequest,
-  ValidateTableUpdateRequest,
-  TableValidationResult,
-  TableUpdateResult,
-  ColumnValidationResult,
-  ColumnUpdateResult,
-  TableData,
-  TableColumn,
-  TableRowData,
-  AddTableDataRequest,
-  UpdateTableDataRequest,
-  LoginRequest,
-  RegisterRequest,
-  LoginResponse,
-  RegisterResponse,
-  ColumnDataType,
-  ExportRequest,
-  ImportRequest,
-  ImportResult,
-  BulkDeleteRequest,
-  BulkUpdateRequest,
-  BulkOperationResult,
-  DashboardStats,
-  PaginationRequest,
-  PaginationResponse,
-  ApiError,
-  ApiValidationError,
-  ApiAuthenticationError,
-  ApiNotFoundError,
-  ApiServerError,
-} from '@/types/api'
 
-// Create axios instance with base configuration
+// ========== INTERFACES - Backend Uyumlu ==========
+
+// Backend'den gelen tablo yapısı
+export interface ApiTable {
+  id: number
+  tableName: string
+  description: string
+  createdAt: string
+  updatedAt?: string
+  isActive: boolean
+  recordCount?: number
+  columns: ApiColumn[]
+}
+
+// Backend'den gelen kolon yapısı
+export interface ApiColumn {
+  id: number
+  columnName: string
+  dataType: number // 0=VARCHAR, 1=INT, 2=DECIMAL, 3=DATETIME
+  isRequired: boolean
+  displayOrder: number
+  defaultValue: string
+}
+
+// Tablo oluşturma isteği
+export interface CreateTableRequest {
+  tableName: string
+  description: string
+  columns: {
+    columnName: string
+    dataType: number
+    isRequired: boolean
+    displayOrder: number
+    defaultValue: string
+  }[]
+}
+
+// Tablo güncelleme isteği
+export interface UpdateTableRequest {
+  tableId: number
+  tableName: string
+  description: string
+  columns: UpdateColumnRequest[]
+}
+
+// Kolon güncelleme isteği
+export interface UpdateColumnRequest {
+  columnId?: number // Yeni kolonlar için null
+  columnName: string
+  dataType: number
+  isRequired: boolean
+  displayOrder: number
+  defaultValue?: string
+  forceUpdate?: boolean
+}
+
+// Giriş isteği - Backend'e uygun
+export interface LoginRequest {
+  userName: string // Backend'de userName kullanılıyor
+  password: string
+}
+
+// Kayıt isteği - Backend'e uygun
+export interface RegisterRequest {
+  firstName: string
+  lastName: string
+  email: string
+  userName: string
+  password: string
+  confirmPassword: string
+}
+
+// Giriş yanıtı - Backend'den gelen yapı
+export interface LoginResponse {
+  success: boolean
+  message: string
+  token?: string
+  user?: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    userName: string
+    emailConfirmed: boolean
+  }
+}
+
+// Kayıt yanıtı - Backend'den gelen yapı
+export interface RegisterResponse {
+  success: boolean
+  message: string
+  requiresEmailConfirmation?: boolean
+}
+
+// Tablo verisi
+export interface TableData {
+  tableId: number
+  tableName: string
+  columns: TableColumn[]
+  data: TableRowData[]
+}
+
+export interface TableColumn {
+  id: number
+  columnName: string
+  dataType: number
+  isRequired: boolean
+  displayOrder: number
+  defaultValue?: string
+}
+
+export interface TableRowData {
+  rowIdentifier: number
+  values: Record<string, any>
+}
+
+// Veri ekleme isteği
+export interface AddTableDataRequest {
+  tableId: number
+  columnValues: Record<number, string>
+}
+
+// Veri güncelleme isteği
+export interface UpdateTableDataRequest {
+  tableId: number
+  rowId: number
+  columnValues: Record<number, string>
+}
+
+// Dashboard istatistikleri
+export interface DashboardStats {
+  totalTables: number
+  totalRecords: number
+  tablesThisMonth: number
+  activeTables: number
+}
+
+// Data type enum
+export enum ColumnDataType {
+  VARCHAR = 0,
+  INT = 1,
+  DECIMAL = 2,
+  DATETIME = 3,
+}
+
+// ========== AXIOS INSTANCE ==========
+
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://localhost:7138/api',
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout
+  timeout: 30000,
 })
 
-// Request interceptor to add auth token
+// Request interceptor - Token ekleme
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken')
+    const token = localStorage.getItem('token') // Mevcut yapınızda 'token' kullanılıyor
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -61,13 +171,16 @@ apiClient.interceptors.request.use(
   },
 )
 
-// Response interceptor for error handling
+// Response interceptor - Hata yönetimi
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('authToken')
-      window.location.href = '/auth'
+      localStorage.removeItem('token')
+      // AuthStore'dan logout işlemi yapmak için
+      if (window.location.pathname !== '/auth') {
+        window.location.href = '/auth'
+      }
     }
     return Promise.reject(error)
   },
@@ -76,21 +189,21 @@ apiClient.interceptors.response.use(
 // ========== API SERVICE CLASS ==========
 
 class ApiService {
-  // ========== AUTHENTICATION API ==========
+  // ========== AUTHENTICATION ==========
 
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
       const response = await apiClient.post<LoginResponse>('/Auth/login', credentials)
 
-      // Save token to localStorage
-      if (response.data.token) {
-        localStorage.setItem('authToken', response.data.token)
+      // Token'ı localStorage'a kaydet (mevcut yapınızla uyumlu)
+      if (response.data.success && response.data.token) {
+        localStorage.setItem('token', response.data.token)
       }
 
       return response.data
     } catch (error) {
       console.error('Error during login:', error)
-      throw this.handleApiError(error, 'login')
+      throw this.extractError(error)
     }
   }
 
@@ -100,33 +213,17 @@ class ApiService {
       return response.data
     } catch (error) {
       console.error('Error during registration:', error)
-      throw this.handleApiError(error, 'registration')
+      throw this.extractError(error)
     }
   }
 
-  async confirmEmail(token: string, email: string): Promise<{ message: string }> {
+  async confirmEmail(token: string, email: string): Promise<{ success: boolean; message: string }> {
     try {
       const response = await apiClient.post('/Auth/confirm-email', { token, email })
       return response.data
     } catch (error) {
       console.error('Error confirming email:', error)
-      throw this.handleApiError(error, 'email confirmation')
-    }
-  }
-
-  async refreshToken(): Promise<{ token: string }> {
-    try {
-      const response = await apiClient.post('/Auth/refresh-token')
-
-      // Update token in localStorage
-      if (response.data.token) {
-        localStorage.setItem('authToken', response.data.token)
-      }
-
-      return response.data
-    } catch (error) {
-      console.error('Error refreshing token:', error)
-      throw this.handleApiError(error, 'token refresh')
+      throw this.extractError(error)
     }
   }
 
@@ -136,12 +233,11 @@ class ApiService {
     } catch (error) {
       console.error('Error during logout:', error)
     } finally {
-      // Always remove token
-      localStorage.removeItem('authToken')
+      localStorage.removeItem('token')
     }
   }
 
-  // ========== TABLES API ==========
+  // ========== TABLES ==========
 
   async getTables(): Promise<ApiTable[]> {
     try {
@@ -149,7 +245,7 @@ class ApiService {
       return response.data
     } catch (error) {
       console.error('Error fetching tables:', error)
-      throw this.handleApiError(error, 'fetching tables')
+      throw this.extractError(error)
     }
   }
 
@@ -159,76 +255,39 @@ class ApiService {
       return response.data
     } catch (error) {
       console.error('Error fetching table:', error)
-      throw this.handleApiError(error, 'fetching table')
+      throw this.extractError(error)
     }
   }
 
   async createTable(data: CreateTableRequest): Promise<ApiTable> {
     try {
       console.log('Creating table with data:', data)
-      const response = await apiClient.post<{ message: string; table: ApiTable }>('/Tables', data)
-      return response.data.table
-    } catch (error) {
-      console.error('Error creating table:', error)
-      throw this.handleApiError(error, 'creating table')
-    }
-  }
+      const response = await apiClient.post('/Tables', data)
 
-  async validateTableUpdate(
-    id: number,
-    data: ValidateTableUpdateRequest,
-  ): Promise<TableValidationResult> {
-    try {
-      console.log('Validating table update:', data)
-      const response = await apiClient.post<TableValidationResult>(
-        `/Tables/${id}/validate-update`,
-        data,
-      )
+      // Backend'den gelen yanıt yapısına göre table'ı çıkar
+      if (response.data.table) {
+        return response.data.table
+      }
       return response.data
     } catch (error) {
-      console.error('Error validating table update:', error)
-      throw this.handleApiError(error, 'validating table update')
+      console.error('Error creating table:', error)
+      throw this.extractError(error)
     }
   }
 
-  async updateTable(id: number, data: UpdateTableRequest): Promise<TableUpdateResult> {
+  async updateTable(id: number, data: UpdateTableRequest): Promise<ApiTable> {
     try {
       console.log('Updating table with data:', data)
-      const response = await apiClient.put<TableUpdateResult>(`/Tables/${id}`, data)
+      const response = await apiClient.put(`/Tables/${id}`, data)
+
+      // Backend'den gelen yanıt yapısına göre table'ı çıkar
+      if (response.data.table) {
+        return response.data.table
+      }
       return response.data
     } catch (error) {
       console.error('Error updating table:', error)
-
-      // Handle validation errors that require force update
-      if (error.response?.status === 400 && error.response?.data?.requiresForceUpdate) {
-        throw {
-          ...error,
-          requiresForceUpdate: true,
-          validationResult: error.response.data.validationResult,
-        }
-      }
-
-      throw this.handleApiError(error, 'updating table')
-    }
-  }
-
-  async forceUpdateTable(id: number, data: UpdateTableRequest): Promise<TableUpdateResult> {
-    try {
-      // Mark all columns for force update
-      const forceData: UpdateTableRequest = {
-        ...data,
-        columns: data.columns.map((col) => ({
-          ...col,
-          forceUpdate: true,
-        })),
-      }
-
-      console.log('Force updating table with data:', forceData)
-      const response = await apiClient.put<TableUpdateResult>(`/Tables/${id}`, forceData)
-      return response.data
-    } catch (error) {
-      console.error('Error force updating table:', error)
-      throw this.handleApiError(error, 'force updating table')
+      throw this.extractError(error)
     }
   }
 
@@ -237,70 +296,11 @@ class ApiService {
       await apiClient.delete(`/Tables/${id}`)
     } catch (error) {
       console.error('Error deleting table:', error)
-      throw this.handleApiError(error, 'deleting table')
+      throw this.extractError(error)
     }
   }
 
-  // ========== COLUMN MANAGEMENT API ==========
-
-  async validateColumnUpdate(
-    tableId: number,
-    columnData: UpdateColumnRequest,
-  ): Promise<ColumnValidationResult> {
-    try {
-      const response = await apiClient.post<ColumnValidationResult>(
-        `/ColumnManagement/validate/${tableId}`,
-        columnData,
-      )
-      return response.data
-    } catch (error) {
-      console.error('Error validating column update:', error)
-      throw this.handleApiError(error, 'validating column update')
-    }
-  }
-
-  async updateColumn(
-    tableId: number,
-    columnData: UpdateColumnRequest,
-  ): Promise<ColumnUpdateResult> {
-    try {
-      const response = await apiClient.put<ColumnUpdateResult>(
-        `/ColumnManagement/${tableId}/columns`,
-        columnData,
-      )
-      return response.data
-    } catch (error) {
-      console.error('Error updating column:', error)
-      throw this.handleApiError(error, 'updating column')
-    }
-  }
-
-  async deleteColumn(tableId: number, columnId: number): Promise<void> {
-    try {
-      await apiClient.delete(`/Tables/${tableId}/columns/${columnId}`)
-    } catch (error) {
-      console.error('Error deleting column:', error)
-      throw this.handleApiError(error, 'deleting column')
-    }
-  }
-
-  async addColumn(
-    tableId: number,
-    columnData: Omit<UpdateColumnRequest, 'columnId'>,
-  ): Promise<ColumnUpdateResult> {
-    try {
-      const response = await apiClient.post<ColumnUpdateResult>(
-        `/Tables/${tableId}/columns`,
-        columnData,
-      )
-      return response.data
-    } catch (error) {
-      console.error('Error adding column:', error)
-      throw this.handleApiError(error, 'adding column')
-    }
-  }
-
-  // ========== TABLE DATA API ==========
+  // ========== TABLE DATA ==========
 
   async getTableData(tableId: number): Promise<TableData> {
     try {
@@ -308,7 +308,7 @@ class ApiService {
       return response.data
     } catch (error) {
       console.error('Error fetching table data:', error)
-      throw this.handleApiError(error, 'fetching table data')
+      throw this.extractError(error)
     }
   }
 
@@ -317,7 +317,7 @@ class ApiService {
       await apiClient.post('/TableData', data)
     } catch (error) {
       console.error('Error adding table data:', error)
-      throw this.handleApiError(error, 'adding table data')
+      throw this.extractError(error)
     }
   }
 
@@ -329,7 +329,7 @@ class ApiService {
       })
     } catch (error) {
       console.error('Error updating table data:', error)
-      throw this.handleApiError(error, 'updating table data')
+      throw this.extractError(error)
     }
   }
 
@@ -338,79 +338,7 @@ class ApiService {
       await apiClient.delete(`/TableData/${rowId}?tableId=${tableId}`)
     } catch (error) {
       console.error('Error deleting table data:', error)
-      throw this.handleApiError(error, 'deleting table data')
-    }
-  }
-
-  // ========== BULK OPERATIONS ==========
-
-  async bulkAddTableData(
-    tableId: number,
-    rows: Array<Record<number, string>>,
-  ): Promise<BulkOperationResult> {
-    try {
-      const requests = rows.map((row) => ({ tableId, columnValues: row }))
-      const response = await apiClient.post<BulkOperationResult>(`/TableData/bulk`, { requests })
-      return response.data
-    } catch (error) {
-      console.error('Error bulk adding table data:', error)
-      throw this.handleApiError(error, 'bulk adding table data')
-    }
-  }
-
-  async bulkDeleteTableData(data: BulkDeleteRequest): Promise<BulkOperationResult> {
-    try {
-      const response = await apiClient.post<BulkOperationResult>(`/TableData/bulk-delete`, data)
-      return response.data
-    } catch (error) {
-      console.error('Error bulk deleting table data:', error)
-      throw this.handleApiError(error, 'bulk deleting table data')
-    }
-  }
-
-  async bulkUpdateTableData(data: BulkUpdateRequest): Promise<BulkOperationResult> {
-    try {
-      const response = await apiClient.post<BulkOperationResult>(`/TableData/bulk-update`, data)
-      return response.data
-    } catch (error) {
-      console.error('Error bulk updating table data:', error)
-      throw this.handleApiError(error, 'bulk updating table data')
-    }
-  }
-
-  // ========== IMPORT/EXPORT ==========
-
-  async exportTableData(tableId: number, format: 'csv' | 'xlsx' | 'json' = 'csv'): Promise<Blob> {
-    try {
-      const response = await apiClient.get(`/Tables/${tableId}/export?format=${format}`, {
-        responseType: 'blob',
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error exporting table data:', error)
-      throw this.handleApiError(error, 'exporting table data')
-    }
-  }
-
-  async importTableData(
-    tableId: number,
-    file: File,
-    hasHeaders: boolean = true,
-  ): Promise<ImportResult> {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('hasHeaders', hasHeaders.toString())
-
-      const response = await apiClient.post<ImportResult>(`/Tables/${tableId}/import`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error importing table data:', error)
-      throw this.handleApiError(error, 'importing table data')
+      throw this.extractError(error)
     }
   }
 
@@ -422,13 +350,13 @@ class ApiService {
       return response.data
     } catch (error) {
       console.error('Error fetching dashboard stats:', error)
-      throw this.handleApiError(error, 'fetching dashboard stats')
+      throw this.extractError(error)
     }
   }
 
   // ========== UTILITY METHODS ==========
 
-  // Data type helpers
+  // Data type helpers - Mevcut yapınızla uyumlu
   getDataTypeLabel(dataType: number): string {
     switch (dataType) {
       case 0: // ColumnDataType.VARCHAR
@@ -536,7 +464,7 @@ class ApiService {
     return { isValid: true }
   }
 
-  // Sample data generators for preview
+  // Sample data generator
   getSampleData(column: { columnName: string; dataType: number; defaultValue?: string }): string {
     if (column.defaultValue) {
       return column.defaultValue
@@ -556,210 +484,41 @@ class ApiService {
     }
   }
 
-  // Check if data type conversion is safe
-  isDataTypeConversionSafe(fromType: number, toType: number): boolean {
-    // Safe conversions (no data loss)
-    const safeConversions = [
-      [1, 2], // INT to DECIMAL
-      [1, 0], // INT to VARCHAR
-      [2, 0], // DECIMAL to VARCHAR
-      [3, 0], // DATETIME to VARCHAR
-    ]
-
-    return (
-      safeConversions.some(([from, to]) => from === fromType && to === toType) ||
-      fromType === toType
-    )
-  }
-
-  // Check if data type conversion is possible but risky
-  isDataTypeConversionRisky(fromType: number, toType: number): boolean {
-    // Risky conversions (potential data loss)
-    const riskyConversions = [
-      [0, 1], // VARCHAR to INT
-      [0, 2], // VARCHAR to DECIMAL
-      [0, 3], // VARCHAR to DATETIME
-      [2, 1], // DECIMAL to INT
-    ]
-
-    return riskyConversions.some(([from, to]) => from === fromType && to === toType)
-  }
-
-  // Format default value for database
-  formatDefaultValueForDatabase(value: string, dataType: number): string {
-    if (!value) return ''
-
-    switch (dataType) {
-      case 3: // ColumnDataType.DATETIME
-        if (value.toUpperCase() === 'GETDATE()') {
-          return 'GETDATE()'
-        }
-        return value
-      case 0: // ColumnDataType.VARCHAR
-        return value
-      case 1: // ColumnDataType.INT
-        return parseInt(value).toString()
-      case 2: // ColumnDataType.DECIMAL
-        return parseFloat(value).toString()
-      default:
-        return value
-    }
-  }
-
   // ========== ERROR HANDLING ==========
 
-  private extractErrorMessage(error: any): string {
-    if (error.response?.data?.message) {
-      return error.response.data.message
-    }
+  private extractError(error: any): Error {
+    // Backend'den gelen hata yapısını analiz et
+    if (error.response?.data) {
+      const data = error.response.data
 
-    if (error.response?.data?.errors) {
-      if (Array.isArray(error.response.data.errors)) {
-        return error.response.data.errors
-          .map((e: any) => (typeof e === 'string' ? e : Object.values(e).join(', ')))
-          .join(', ')
+      // Backend'den success: false ile gelen yapı
+      if (data.success === false && data.message) {
+        return new Error(data.message)
       }
-      return Object.values(error.response.data.errors).flat().join(', ')
+
+      // Validation errors
+      if (data.errors) {
+        const errors = Array.isArray(data.errors) ? data.errors : Object.values(data.errors).flat()
+        return new Error(errors.join(', '))
+      }
+
+      // Direct message
+      if (data.message) {
+        return new Error(data.message)
+      }
+
+      // Issues array
+      if (data.issues) {
+        return new Error(data.issues.join(', '))
+      }
     }
 
-    if (error.response?.data?.issues) {
-      return error.response.data.issues.join(', ')
-    }
-
+    // Network or other errors
     if (error.message) {
-      return error.message
+      return new Error(error.message)
     }
 
-    return 'Bilinmeyen hata oluştu'
-  }
-
-  private handleApiError(error: any, operation: string): never {
-    const message = this.extractErrorMessage(error)
-    console.error(`Error during ${operation}:`, error)
-
-    // Handle specific HTTP status codes
-    if (error.response?.status === 401) {
-      throw new ApiAuthenticationError('Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.')
-    }
-
-    if (error.response?.status === 403) {
-      throw new ApiAuthenticationError('Bu işlem için yetkiniz bulunmuyor.')
-    }
-
-    if (error.response?.status === 404) {
-      throw new ApiNotFoundError('İstenen kaynak bulunamadı.')
-    }
-
-    if (error.response?.status === 400 && error.response?.data?.errors) {
-      throw new ApiValidationError(message, error.response.data.errors)
-    }
-
-    if (error.response?.status >= 500) {
-      throw new ApiServerError('Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.')
-    }
-
-    // Generic error
-    throw new Error(message)
-  }
-
-  // ========== PAGINATION HELPERS ==========
-
-  async getTablesPaginated(params: PaginationRequest): Promise<PaginationResponse<ApiTable>> {
-    try {
-      const queryParams = new URLSearchParams({
-        page: params.page.toString(),
-        pageSize: params.pageSize.toString(),
-        ...(params.sortBy && { sortBy: params.sortBy }),
-        ...(params.sortOrder && { sortOrder: params.sortOrder }),
-        ...(params.search && { search: params.search }),
-      })
-
-      const response = await apiClient.get<PaginationResponse<ApiTable>>(
-        `/Tables/paginated?${queryParams}`,
-      )
-      return response.data
-    } catch (error) {
-      console.error('Error fetching paginated tables:', error)
-      throw this.handleApiError(error, 'fetching paginated tables')
-    }
-  }
-
-  async getTableDataPaginated(
-    tableId: number,
-    params: PaginationRequest,
-  ): Promise<PaginationResponse<TableRowData>> {
-    try {
-      const queryParams = new URLSearchParams({
-        page: params.page.toString(),
-        pageSize: params.pageSize.toString(),
-        ...(params.sortBy && { sortBy: params.sortBy }),
-        ...(params.sortOrder && { sortOrder: params.sortOrder }),
-        ...(params.search && { search: params.search }),
-      })
-
-      const response = await apiClient.get<PaginationResponse<TableRowData>>(
-        `/Tables/${tableId}/data/paginated?${queryParams}`,
-      )
-      return response.data
-    } catch (error) {
-      console.error('Error fetching paginated table data:', error)
-      throw this.handleApiError(error, 'fetching paginated table data')
-    }
-  }
-
-  // ========== HEALTH CHECK ==========
-
-  async healthCheck(): Promise<{ status: string; timestamp: string; version?: string }> {
-    try {
-      const response = await apiClient.get('/health')
-      return response.data
-    } catch (error) {
-      console.error('Health check failed:', error)
-      throw this.handleApiError(error, 'health check')
-    }
-  }
-
-  // ========== FILE UTILITIES ==========
-
-  downloadFile(blob: Blob, filename: string): void {
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-  }
-
-  async downloadTableExport(
-    tableId: number,
-    tableName: string,
-    format: 'csv' | 'xlsx' | 'json' = 'csv',
-  ): Promise<void> {
-    try {
-      const blob = await this.exportTableData(tableId, format)
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-')
-      const filename = `${tableName}_${timestamp}.${format}`
-      this.downloadFile(blob, filename)
-    } catch (error) {
-      console.error('Error downloading table export:', error)
-      throw this.handleApiError(error, 'downloading table export')
-    }
-  }
-
-  // ========== LOCAL STORAGE HELPERS ==========
-
-  getAuthToken(): string | null {
-    return localStorage.getItem('authToken')
-  }
-
-  isAuthenticated(): boolean {
-    return !!this.getAuthToken()
-  }
-
-  clearAuthData(): void {
-    localStorage.removeItem('authToken')
+    return new Error('Bilinmeyen bir hata oluştu')
   }
 
   // ========== VALIDATION HELPERS ==========
@@ -804,36 +563,7 @@ class ApiService {
     return { isValid: true }
   }
 
-  validateEmail(email: string): { isValid: boolean; error?: string } {
-    if (!email || email.trim().length === 0) {
-      return { isValid: false, error: 'E-posta adresi boş olamaz' }
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return { isValid: false, error: 'Geçerli bir e-posta adresi giriniz' }
-    }
-
-    return { isValid: true }
-  }
-
-  validatePassword(password: string): { isValid: boolean; error?: string } {
-    if (!password || password.length === 0) {
-      return { isValid: false, error: 'Şifre boş olamaz' }
-    }
-
-    if (password.length < 6) {
-      return { isValid: false, error: 'Şifre en az 6 karakter olmalıdır' }
-    }
-
-    if (password.length > 100) {
-      return { isValid: false, error: 'Şifre en fazla 100 karakter olabilir' }
-    }
-
-    return { isValid: true }
-  }
-
-  // ========== FORMATTING HELPERS ==========
+  // ========== FORMAT HELPERS ==========
 
   formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 Bytes'
@@ -886,38 +616,45 @@ class ApiService {
       return dateString
     }
   }
+
+  // ========== AUTHENTICATION HELPERS ==========
+
+  getAuthToken(): string | null {
+    return localStorage.getItem('token')
+  }
+
+  isAuthenticated(): boolean {
+    return !!this.getAuthToken()
+  }
+
+  clearAuthData(): void {
+    localStorage.removeItem('token')
+  }
 }
 
 // ========== EXPORT ==========
 
-// Export singleton instance
+// Singleton instance export - Mevcut yapınızla uyumlu
 export const apiService = new ApiService()
-
-// Export the service class for advanced usage
-export { ApiService }
 
 // Default export
 export default apiService
 
-// Re-export types for convenience
+// Type exports
 export type {
   ApiTable,
   ApiColumn,
   CreateTableRequest,
   UpdateTableRequest,
   UpdateColumnRequest,
-  ValidateTableUpdateRequest,
-  TableValidationResult,
-  TableUpdateResult,
-  ColumnValidationResult,
-  ColumnUpdateResult,
+  LoginRequest,
+  RegisterRequest,
+  LoginResponse,
+  RegisterResponse,
   TableData,
   TableColumn,
   TableRowData,
   AddTableDataRequest,
   UpdateTableDataRequest,
-  LoginRequest,
-  RegisterRequest,
-  LoginResponse,
-  RegisterResponse,
+  DashboardStats,
 }

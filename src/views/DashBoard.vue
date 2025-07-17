@@ -1,15 +1,16 @@
 <template>
   <v-container fluid class="dashboard-container">
-    <!-- My Tables Section -->
-    <v-row justify="center">
-      <v-col cols="12" lg="10" xl="9">
+    <!-- Main Content - Recent Tables Section -->
+    <v-row>
+      <v-col cols="12">
         <v-card elevation="2" class="main-card">
           <!-- Header -->
           <v-card-title class="header-section pa-8">
             <div class="d-flex align-center justify-space-between w-100">
               <div class="d-flex align-center">
+                <v-icon icon="mdi-table-clock" class="mr-3" color="primary" size="32"></v-icon>
                 <div>
-                  <h1 class="text-h4 font-weight-bold text-gray mb-1">MEVCUT TABLOLARINIZ</h1>
+                  <h1 class="text-h4 font-weight-bold text-gray mb-1">TABLOLARINIZ</h1>
                 </div>
               </div>
 
@@ -74,77 +75,69 @@
           </v-card-text>
 
           <!-- Tables List -->
-          <div v-else class="table-list-container">
-            <v-list class="pa-0 corporate-list">
+          <v-card-text v-else class="pa-0">
+            <v-list lines="three" class="py-0">
               <template v-for="(table, index) in recentTables" :key="table.id">
-                <v-list-item
-                  @click="viewTableData(table.id)"
-                  class="table-list-item"
-                  :ripple="false"
-                >
+                <v-list-item @click="viewTableData(table.id)" class="table-item pa-6">
                   <template v-slot:prepend>
-                    <div class="table-icon-wrapper mr-6">
-                      <v-icon color="primary" size="24">mdi-table</v-icon>
-                    </div>
+                    <v-avatar size="56" :color="getTableColor(index)" variant="tonal">
+                      <v-icon icon="mdi-table" size="28"></v-icon>
+                    </v-avatar>
                   </template>
 
-                  <div class="table-content flex-grow-1">
-                    <v-list-item-title class="text-h6 font-weight-medium text-black mb-1">
-                      {{ table.name || table.tableName }}
-                    </v-list-item-title>
-                    <v-list-item-subtitle class="text-body-2 text-black">
-                      {{
-                        table.description ||
-                        `${table.columnCount || 0} kolon • Oluşturulma: ${formatDate(table.createdAt)}`
-                      }}
-                    </v-list-item-subtitle>
-                  </div>
+                  <v-list-item-title class="text-h6 font-weight-medium mb-1">
+                    {{ table.tableName }}
+                  </v-list-item-title>
+
+                  <v-list-item-subtitle class="text-body-2">
+                    <div class="d-flex align-center mb-1">
+                      <v-icon icon="mdi-calendar" size="16" class="mr-1"></v-icon>
+                      {{ formatDate(table.createdAt) }}
+                    </div>
+                    <div class="d-flex align-center">
+                      <v-chip
+                        size="small"
+                        :color="getRecordCountColor(table.recordCount || 0)"
+                        variant="flat"
+                        class="mr-2"
+                      >
+                        <v-icon icon="mdi-database" size="14" class="mr-1"></v-icon>
+                        {{ table.recordCount || 0 }} kayıt
+                      </v-chip>
+                      <v-chip
+                        size="small"
+                        :color="table.isActive ? 'success' : 'warning'"
+                        variant="flat"
+                      >
+                        {{ table.isActive ? 'Aktif' : 'Pasif' }}
+                      </v-chip>
+                    </div>
+                  </v-list-item-subtitle>
 
                   <template v-slot:append>
-                    <div class="table-meta d-flex align-center">
-                      <div class="mr-6 text-right">
-                        <div class="text-body-2 text-green font-weight-medium mb-1">
-                          {{ (table.recordCount || 0).toLocaleString() }} kayıt
-                        </div>
-                        <v-chip
-                          :color="getRecordCountColor(table.recordCount || 0)"
-                          variant="flat"
-                          size="small"
-                          class="status-chip"
-                        >
-                          {{ getStatusText(table.recordCount || 0) }}
-                        </v-chip>
-                      </div>
-                      <v-icon color="grey-lighten-1" size="20" class="arrow-icon">
-                        mdi-chevron-right
-                      </v-icon>
-                    </div>
+                    <v-btn icon="mdi-chevron-right" variant="text" color="grey"></v-btn>
                   </template>
                 </v-list-item>
-
-                <v-divider
-                  v-if="index < recentTables.length - 1"
-                  class="mx-8 border-opacity-25"
-                ></v-divider>
+                <v-divider v-if="index < recentTables.length - 1"></v-divider>
               </template>
             </v-list>
-          </div>
 
-          <!-- Footer -->
-          <v-divider class="border-opacity-25"></v-divider>
-          <v-card-actions class="px-8 py-4">
-            <v-spacer></v-spacer>
-            <v-btn
-              variant="text"
-              color="grey-darken-1"
-              size="small"
-              @click="loadDashboardData"
-              :loading="loading"
-            >
-              <v-icon start>mdi-refresh</v-icon>
-              Yenile
-            </v-btn>
-          </v-card-actions>
+            <!-- Footer -->
+            <v-divider class="border-opacity-25"></v-divider>
+            <v-card-actions class="px-8 py-4">
+              <v-spacer></v-spacer>
+              <v-btn
+                variant="text"
+                color="grey-darken-1"
+                size="small"
+                @click="loadDashboardData"
+                :loading="loading"
+              >
+                <v-icon start>mdi-refresh</v-icon>
+                Yenile
+              </v-btn>
+            </v-card-actions>
+          </v-card-text>
         </v-card>
       </v-col>
     </v-row>
@@ -152,11 +145,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'vue-toastification'
-import { apiService, handleApiError, type Table } from '@/services/api'
+import { apiService } from '@/services/api'
+
+// Interfaces - Backend'inizle uyumlu
+interface ApiTable {
+  id: number
+  tableName: string
+  description: string
+  createdAt: string
+  isActive: boolean
+  recordCount?: number
+  columns: ApiColumn[]
+}
+
+interface ApiColumn {
+  id: number
+  columnName: string
+  dataType: number // 0=VARCHAR, 1=INT, 2=DECIMAL, 3=DATETIME
+  isRequired: boolean
+  displayOrder: number
+  defaultValue: string
+}
 
 // Composables
 const router = useRouter()
@@ -165,56 +178,14 @@ const toast = useToast()
 
 // Reactive Data
 const loading = ref(true)
-const recentTables = ref<Table[]>([])
-
+const showWelcomeMessage = ref(false)
 const stats = ref({
   totalTables: 0,
   totalRecords: 0,
   tablesThisMonth: 0,
   activeTables: 0,
 })
-
-// Methods
-const loadDashboardData = async () => {
-  loading.value = true
-  try {
-    // API endpoint'lerinden verileri çek
-    const allTables = await apiService.getTables()
-
-    // İstatistikleri hesapla
-    stats.value = {
-      totalTables: allTables.length,
-      totalRecords: allTables.reduce(
-        (sum: number, table: Table) => sum + (table.recordCount || 0),
-        0,
-      ),
-      tablesThisMonth: allTables.filter((table: Table) => {
-        const createdDate = new Date(table.createdAt)
-        const now = new Date()
-        return (
-          createdDate.getMonth() === now.getMonth() &&
-          createdDate.getFullYear() === now.getFullYear()
-        )
-      }).length,
-      activeTables: allTables.filter((table: Table) => table.isActive).length,
-    }
-
-    // Son 5 tabloyu göster
-    recentTables.value = allTables
-      .sort(
-        (a: Table, b: Table) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )
-      .slice(0, 5)
-  } catch (error) {
-    handleApiError(error, 'Dashboard verileri yüklenirken hata oluştu')
-
-    // Fallback mock data
-    stats.value = { totalTables: 0, totalRecords: 0, tablesThisMonth: 0, activeTables: 0 }
-    recentTables.value = []
-  } finally {
-    loading.value = false
-  }
-}
+const recentTables = ref<ApiTable[]>([])
 
 const createTable = () => {
   router.push('/tables/new')
@@ -230,16 +201,14 @@ const viewTableData = (tableId: number) => {
 
 const getRecordCountColor = (count: number): string => {
   if (count === 0) return 'grey-lighten-1'
-  if (count < 10) return 'orange-lighten-1'
-  if (count < 50) return 'blue-lighten-1'
-  return 'green-lighten-1'
+  if (count < 10) return 'warning'
+  if (count < 50) return 'info'
+  return 'success'
 }
 
-const getStatusText = (count: number): string => {
-  if (count === 0) return 'Boş'
-  if (count < 10) return 'Az Veri'
-  if (count < 50) return 'Orta'
-  return 'Aktif'
+const getTableColor = (index: number): string => {
+  const colors = ['primary', 'success', 'info', 'warning', 'secondary']
+  return colors[index % colors.length]
 }
 
 const formatDate = (dateString: string): string => {
@@ -251,234 +220,124 @@ const formatDate = (dateString: string): string => {
 }
 
 // Lifecycle
-onMounted(() => {
-  loadDashboardData()
+onMounted(async () => {
+  // Hoş geldin mesajını göster
+  await nextTick()
+  showWelcomeMessage.value = true
 })
 </script>
 
 <style scoped>
 .dashboard-container {
-  background: #fafafa;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   min-height: calc(100vh - 64px);
-  padding: 40px 24px;
+  padding: 2rem 1rem;
 }
 
-.main-card {
-  background: white;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+.welcome-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.header-section {
-  background: white;
-  border-bottom: 1px solid #f5f5f5;
+.stat-card {
+  transition:
+    transform 0.2s ease-in-out,
+    box-shadow 0.2s ease-in-out;
 }
 
-.header-icon-wrapper {
-  width: 48px;
-  height: 48px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #e9ecef;
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+.action-btn {
+  transition: all 0.2s ease-in-out;
+  min-height: 80px;
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
 }
 
 .corporate-btn {
   text-transform: none;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.5px;
-  border-radius: 6px;
-  box-shadow: none;
-  min-width: 120px;
+  border-radius: 8px;
 }
 
-.corporate-btn:hover {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.table-item {
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.table-item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.main-card {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.header-section {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.text-gray {
+  color: #495057 !important;
 }
 
 .empty-state-icon {
-  width: 120px;
-  height: 120px;
-  background: #f8f9fa;
-  border-radius: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
-  border: 2px solid #e9ecef;
+  animation: float 3s ease-in-out infinite;
 }
 
-.corporate-list {
-  background: white;
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
-.table-list-item {
-  padding: 20px 32px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  min-height: 80px;
-}
-
-.table-list-item:hover {
-  background: #f8f9fa;
-}
-
-.table-list-item:hover .arrow-icon {
-  color: #1976d2 !important;
-  transform: translateX(4px);
-}
-
-.table-icon-wrapper {
-  width: 40px;
-  height: 40px;
-  background: #f0f4ff;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #e3f2fd;
-}
-
-.table-content {
-  padding: 4px 0;
-}
-
-.table-meta {
-  min-width: 180px;
-}
-
-.status-chip {
-  font-size: 11px;
+.welcome-snackbar {
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  height: 20px;
 }
 
-.arrow-icon {
-  transition: all 0.2s ease;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
+/* Responsive Design */
+@media (max-width: 960px) {
   .dashboard-container {
-    padding: 20px 16px;
+    padding: 1rem 0.5rem;
   }
 
-  .header-section .d-flex {
-    flex-direction: column;
-    gap: 20px;
-    text-align: center;
+  .header-section {
+    padding: 1.5rem !important;
   }
 
   .table-actions {
-    display: flex;
-    gap: 12px;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .corporate-btn {
     width: 100%;
-  }
-
-  .table-actions .corporate-btn {
-    flex: 1;
-  }
-
-  .table-list-item {
-    padding: 16px 20px;
-  }
-
-  .table-meta {
-    min-width: auto;
+    margin: 0 !important;
   }
 }
 
 @media (max-width: 600px) {
-  .table-list-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+  .action-btn {
+    min-height: 60px;
   }
 
-  .table-icon-wrapper {
-    margin-right: 0 !important;
-    margin-bottom: 8px;
+  .stat-card .text-h3 {
+    font-size: 1.5rem !important;
   }
 
-  .table-meta {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .arrow-icon {
-    display: none;
-  }
-}
-
-/* Dark theme adjustments */
-.v-theme--dark .dashboard-container {
-  background: #121212;
-}
-
-.v-theme--dark .main-card {
-  background: #1e1e1e;
-  border: 1px solid #333;
-}
-
-.v-theme--dark .header-section {
-  background: #1e1e1e;
-  border-bottom: 1px solid #333;
-}
-
-.v-theme--dark .header-icon-wrapper {
-  background: #2a2a2a;
-  border: 1px solid #404040;
-}
-
-.v-theme--dark .table-list-item:hover {
-  background: #2a2a2a;
-}
-
-.v-theme--dark .table-icon-wrapper {
-  background: #1a237e;
-  border: 1px solid #303f9f;
-}
-
-.v-theme--dark .empty-state-icon {
-  background: #2a2a2a;
-  border: 2px solid #404040;
-}
-
-/* Professional animations */
-.table-list-item {
-  opacity: 0;
-  animation: slideInUp 0.4s ease forwards;
-}
-
-.table-list-item:nth-child(1) {
-  animation-delay: 0.1s;
-}
-.table-list-item:nth-child(2) {
-  animation-delay: 0.15s;
-}
-.table-list-item:nth-child(3) {
-  animation-delay: 0.2s;
-}
-.table-list-item:nth-child(4) {
-  animation-delay: 0.25s;
-}
-.table-list-item:nth-child(5) {
-  animation-delay: 0.3s;
-}
-
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(15px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .header-section .text-h4 {
+    font-size: 1.25rem !important;
   }
 }
 </style>

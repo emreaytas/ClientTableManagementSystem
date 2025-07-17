@@ -262,26 +262,22 @@ onMounted(() => {
   const error = route.query.error
 
   if (verified === 'true') {
-    // Başarılı e-posta doğrulama
     showAlert('success', 'E-posta adresiniz başarıyla doğrulandı! Artık giriş yapabilirsiniz.')
-    currentTab.value = 'login' // Login tab'ına geç
+    currentTab.value = 'login'
   } else if (verified === 'false') {
-    // Başarısız e-posta doğrulama
     showAlert('error', 'E-posta doğrulama işlemi başarısız.')
   } else if (error === 'invalid-confirmation-link') {
-    // Geçersiz link
     showAlert('error', 'Geçersiz doğrulama linki.')
   }
 
-  // URL'yi temizle (parametreleri kaldır)
+  // URL'yi temizle
   if (verified || error) {
     router.replace('/auth')
   }
 
-  // Check if user is already authenticated
+  // Eğer kullanıcı zaten giriş yapmışsa dashboard'a yönlendir
   if (authStore.isAuthenticated) {
-    const redirectPath = (route.query.redirect as string) || '/dashboard'
-    router.push(redirectPath)
+    router.push('/dashboard')
   }
 })
 
@@ -427,14 +423,7 @@ const showAlert = (type: 'success' | 'error' | 'warning' | 'info', message: stri
 const hideAlert = () => {
   alert.show = false
 }
-
 const handleLogin = async () => {
-  // Check for validation errors before proceeding
-  if (usernameCheck.error) {
-    showAlert('error', usernameCheck.error)
-    return
-  }
-
   const { valid } = await loginForm.value.validate()
   if (!valid) return
 
@@ -446,8 +435,11 @@ const handleLogin = async () => {
 
     if (response.success) {
       showAlert('success', response.message || 'Giriş başarılı!')
-      const redirectPath = (route.query.redirect as string) || '/dashboard'
-      setTimeout(() => router.push(redirectPath), 1000)
+
+      // Başarılı giriş sonrası direkt dashboard'a yönlendir
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 1000)
     } else {
       showAlert('error', response.message || 'Giriş başarısız!')
     }

@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useTheme } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
@@ -167,17 +167,29 @@ watch(route, () => {
   }
 })
 
-// Watch authentication status
+// Watch authentication status - Dashboard'a otomatik yönlendirme
 watch(
   () => authStore.isAuthenticated,
   (isAuth) => {
     if (!isAuth && route.meta.requiresAuth) {
+      // Kullanıcı çıkış yaptıysa ve sayfa giriş gerektiriyorsa auth'a yönlendir
       router.push('/auth')
+    } else if (isAuth && (route.path === '/auth' || route.path === '/')) {
+      // Kullanıcı giriş yaptıysa ve auth sayfasında veya ana sayfadaysa dashboard'a yönlendir
+      router.push('/dashboard')
     }
   },
+  { immediate: true }, // Sayfa yüklendiğinde de kontrol et
 )
-</script>
 
+// Sayfa yüklendiğinde token kontrolü ve otomatik yönlendirme
+onMounted(() => {
+  // Token varsa ve geçerliyse otomatik olarak dashboard'a yönlendir
+  if (authStore.isAuthenticated && (route.path === '/auth' || route.path === '/')) {
+    router.push('/dashboard')
+  }
+})
+</script>
 <style scoped>
 .v-toolbar-title {
   font-size: 1.25rem !important;
