@@ -11,23 +11,12 @@
             <p class="text-subtitle-1 text--secondary">
               {{
                 isEdit
-                  ? 'Mevcut tabloyu düzenleyin ve DDL değişikliklerini uygulayın'
+                  ? 'Mevcut tabloyu düzenleyin'
                   : 'Yeni bir tablo oluşturun ve kolonlarını tanımlayın'
               }}
             </p>
           </div>
         </div>
-      </v-col>
-    </v-row>
-
-    <!-- Warning for Edit Mode -->
-    <v-row v-if="isEdit">
-      <v-col cols="12">
-        <v-alert type="warning" variant="tonal" class="mb-4">
-          <v-icon>mdi-alert-circle</v-icon>
-          <strong>Dikkat:</strong> Tablo yapısındaki değişiklikler mevcut verileri etkileyebilir.
-          Değişikliklerinizi önizleyerek kontrol edin ve gerekirse yedekleme yapın.
-        </v-alert>
       </v-col>
     </v-row>
 
@@ -47,7 +36,8 @@
                 variant="outlined"
                 :rules="[rules.required, rules.tableName]"
                 class="mb-3"
-                :disabled="loading || (isEdit && !allowTableRename)"
+                :disabled="loading"
+                @input="checkForChanges"
               ></v-text-field>
 
               <v-textarea
@@ -57,206 +47,41 @@
                 rows="3"
                 class="mb-3"
                 :disabled="loading"
+                @input="checkForChanges"
               ></v-textarea>
-
-              <!-- Edit Mode Options -->
-              <div v-if="isEdit" class="mb-4">
-                <v-divider class="mb-3"></v-divider>
-                <h4 class="mb-3">Güvenlik Seçenekleri</h4>
-
-                <v-checkbox
-                  v-model="allowTableRename"
-                  label="Tablo adını değiştirebilir"
-                  class="mb-2"
-                  :disabled="loading"
-                ></v-checkbox>
-
-                <v-checkbox
-                  v-model="forceUpdate"
-                  label="Veri uyumsuzluğunda zorla güncelle"
-                  class="mb-2"
-                  :disabled="loading"
-                ></v-checkbox>
-
-                <v-checkbox
-                  v-model="showDDLPreview"
-                  label="DDL komutlarını göster"
-                  class="mb-3"
-                  :disabled="loading"
-                ></v-checkbox>
-              </div>
 
               <v-alert type="info" variant="tonal" class="mb-3">
                 {{
                   isEdit
-                    ? 'Kolon ekleme, silme ve tip değişiklikleri DDL komutları ile uygulanacak.'
+                    ? 'Tablo yapısını değiştirmek mevcut verilerinizi etkileyebilir.'
                     : 'Tablo oluşturduktan sonra kolon yapısını değiştirmek verilerinizi etkileyebilir.'
                 }}
               </v-alert>
 
-              <!-- Action Buttons -->
-              <div class="d-flex flex-column ga-2">
-                <v-btn
-                  color="info"
-                  variant="outlined"
-                  prepend-icon="mdi-eye"
-                  @click="showPreview"
-                  :disabled="tableData.columns.length === 0"
-                  block
-                >
-                  {{ isEdit ? 'Değişiklikleri Önizle' : 'Tablo Önizleme' }}
-                </v-btn>
+              <!-- Change Detection Alert -->
+              <v-alert v-if="isEdit && hasChanges" type="warning" variant="tonal" class="mb-3">
+                <v-icon class="mr-2">mdi-pencil</v-icon>
+                Değişiklikler tespit edildi. Güncellemek için "Güncelle" butonuna tıklayın.
+              </v-alert>
 
-                <v-btn
-                  v-if="isEdit"
-                  color="warning"
-                  variant="outlined"
-                  prepend-icon="mdi-script-text"
-                  @click="showDDLDialog = true"
-                  :disabled="!hasChanges"
-                  block
-                >
-                  DDL Komutları
-                </v-btn>
-
-                <v-btn
-                  v-if="isEdit"
-                  color="secondary"
-                  variant="outlined"
-                  prepend-icon="mdi-history"
-                  @click="loadDDLHistory"
-                  block
-                >
-                  Değişiklik Geçmişi
-                </v-btn>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-
-        <!-- Columns Definition -->
-        <v-col cols="12" lg="8">
-          <v-card>
-            <v-card-title>
-              <v-icon class="mr-2">mdi-table-column</v-icon>
-              Kolonlar
-              <v-spacer></v-spacer>
-              <v-btn
-                color="primary"
-                variant="outlined"
-                size="small"
-                prepend-icon="mdi-plus"
-                @click="addColumn"
-                :disabled="loading"
-              >
-                Kolon Ekle
-              </v-btn>
-            </v-card-title>
-            <v-card-text>
-              <div v-if="tableData.columns.length === 0" class="text-center py-8">
-                <v-icon size="64" color="grey-lighten-1">mdi-table-column-plus-before</v-icon>
-                <p class="text-h6 text--secondary mt-2">Henüz kolon eklenmedi</p>
-                <p class="text-body-2 text--secondary">Tablonuza kolon ekleyerek başlayın</p>
-              </div>
-
-              <div v-else>
+              <!-- Table Statistics for Edit Mode -->
+              <div v-if="isEdit" class="mb-3">
+                <v-divider class="mb-3"></v-divider>
+                <h3 class="text-h6 mb-2">Tablo İstatistikleri</h3>
                 <v-row>
-                  <v-col
-                    v-for="(column, index) in tableData.columns"
-                    :key="index"
-                    cols="12"
-                    md="6"
-                    xl="4"
-                  >
-                    <v-card
-                      variant="outlined"
-                      class="column-card"
-                      :class="getColumnCardClass(column)"
-                    >
-                      <v-card-text>
-                        <div class="d-flex justify-space-between align-center mb-3">
-                          <div class="d-flex align-center ga-2">
-                            <v-chip
-                              :color="getColumnTypeColor(column.dataType)"
-                              variant="tonal"
-                              size="small"
-                            >
-                              {{ getColumnTypeLabel(column.dataType) }}
-                            </v-chip>
-                            <v-chip
-                              v-if="getColumnStatus(column) !== 'unchanged'"
-                              :color="getColumnStatusColor(column)"
-                              variant="tonal"
-                              size="x-small"
-                            >
-                              {{ getColumnStatusLabel(column) }}
-                            </v-chip>
-                          </div>
-                          <v-btn
-                            icon="mdi-delete"
-                            size="small"
-                            variant="text"
-                            color="error"
-                            @click="removeColumn(index)"
-                            :disabled="loading"
-                          ></v-btn>
-                        </div>
-
-                        <v-text-field
-                          v-model="column.columnName"
-                          label="Kolon Adı *"
-                          variant="outlined"
-                          density="compact"
-                          :rules="[rules.required, rules.columnName]"
-                          class="mb-2"
-                          :disabled="loading"
-                          @input="markColumnAsModified(column)"
-                        ></v-text-field>
-
-                        <v-select
-                          v-model="column.dataType"
-                          :items="columnTypes"
-                          item-title="title"
-                          item-value="value"
-                          label="Veri Tipi *"
-                          variant="outlined"
-                          density="compact"
-                          :rules="[rules.dataType]"
-                          class="mb-2"
-                          :disabled="loading"
-                          @update:model-value="markColumnAsModified(column)"
-                        ></v-select>
-
-                        <v-text-field
-                          v-if="column.dataType === ColumnDataType.VARCHAR"
-                          v-model.number="column.maxLength"
-                          label="Maksimum Uzunluk"
-                          variant="outlined"
-                          density="compact"
-                          type="number"
-                          :rules="[rules.maxLength]"
-                          class="mb-2"
-                          :disabled="loading"
-                          @input="markColumnAsModified(column)"
-                        ></v-text-field>
-
-                        <v-text-field
-                          v-model="column.defaultValue"
-                          label="Varsayılan Değer"
-                          variant="outlined"
-                          density="compact"
-                          class="mb-2"
-                          :disabled="loading"
-                          @input="markColumnAsModified(column)"
-                        ></v-text-field>
-
-                        <v-checkbox
-                          v-model="column.isRequired"
-                          label="Zorunlu Alan"
-                          density="compact"
-                          :disabled="loading"
-                          @change="markColumnAsModified(column)"
-                        ></v-checkbox>
+                  <v-col cols="6">
+                    <v-card variant="tonal" color="primary">
+                      <v-card-text class="text-center">
+                        <div class="text-h6">{{ tableData.columns.length }}</div>
+                        <div class="text-caption">Kolon Sayısı</div>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                  <v-col cols="6">
+                    <v-card variant="tonal" color="success">
+                      <v-card-text class="text-center">
+                        <div class="text-h6">{{ requiredColumnsCount }}</div>
+                        <div class="text-caption">Zorunlu Kolon</div>
                       </v-card-text>
                     </v-card>
                   </v-col>
@@ -266,21 +91,163 @@
           </v-card>
         </v-col>
 
-        <!-- Save Actions -->
+        <!-- Columns -->
+        <v-col cols="12" lg="8">
+          <v-card>
+            <v-card-title class="d-flex justify-space-between align-center">
+              <div>
+                <v-icon class="mr-2">mdi-table-column</v-icon>
+                Kolonlar ({{ tableData.columns.length }})
+              </div>
+              <v-btn color="success" prepend-icon="mdi-plus" @click="addColumn" :disabled="loading">
+                Kolon Ekle
+              </v-btn>
+            </v-card-title>
+            <v-card-text>
+              <div v-if="tableData.columns.length === 0" class="text-center py-8">
+                <v-icon size="64" color="grey-lighten-1">mdi-table-column-plus-after</v-icon>
+                <p class="text-h6 text--secondary mt-2">Henüz kolon eklenmedi</p>
+                <p class="text-body-2 text--secondary">Tablonuz için gerekli kolonları ekleyin</p>
+                <v-btn color="success" class="mt-4" prepend-icon="mdi-plus" @click="addColumn">
+                  İlk Kolonu Ekle
+                </v-btn>
+              </div>
+
+              <div v-else>
+                <v-row>
+                  <v-col
+                    v-for="(column, index) in tableData.columns"
+                    :key="index"
+                    cols="12"
+                    md="6"
+                    lg="4"
+                  >
+                    <v-card class="column-card" elevation="1">
+                      <v-card-title class="pb-2 d-flex justify-space-between align-center">
+                        <span class="text-h6">Kolon {{ index + 1 }}</span>
+                        <v-btn
+                          icon="mdi-delete"
+                          size="small"
+                          color="error"
+                          variant="text"
+                          @click="removeColumn(index)"
+                          :disabled="loading"
+                        ></v-btn>
+                      </v-card-title>
+                      <v-card-text>
+                        <v-text-field
+                          v-model="column.columnName"
+                          label="Kolon Adı *"
+                          variant="outlined"
+                          density="compact"
+                          :rules="[rules.required, rules.columnName]"
+                          class="mb-2"
+                          :disabled="loading"
+                          @input="checkForChanges"
+                        ></v-text-field>
+
+                        <v-select
+                          v-model="column.dataType"
+                          :items="columnTypes"
+                          label="Veri Tipi *"
+                          variant="outlined"
+                          density="compact"
+                          :rules="[rules.dataType]"
+                          class="mb-2"
+                          :disabled="loading"
+                          @update:model-value="checkForChanges"
+                        ></v-select>
+
+                        <v-text-field
+                          v-model="column.defaultValue"
+                          label="Varsayılan Değer"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-2"
+                          :disabled="loading"
+                          @input="checkForChanges"
+                        ></v-text-field>
+
+                        <v-checkbox
+                          v-model="column.isRequired"
+                          label="Zorunlu"
+                          density="compact"
+                          class="mb-1"
+                          :disabled="loading"
+                          @change="checkForChanges"
+                        ></v-checkbox>
+
+                        <!-- Column Info Chip -->
+                        <v-chip
+                          :color="getColumnTypeColor(column.dataType)"
+                          variant="tonal"
+                          size="small"
+                          class="mr-2"
+                        >
+                          {{ getColumnTypeLabel(column.dataType) }}
+                        </v-chip>
+                        <v-chip v-if="column.isRequired" color="red" variant="tonal" size="small">
+                          Zorunlu
+                        </v-chip>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                </v-row>
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
+      <!-- Action Buttons -->
+      <v-row class="mt-6">
         <v-col cols="12">
-          <div class="d-flex justify-end ga-3">
-            <v-btn color="grey" variant="outlined" @click="goBack" :disabled="loading">
-              İptal
-            </v-btn>
-            <v-btn
-              color="primary"
-              variant="elevated"
-              type="submit"
-              :loading="loading"
-              :disabled="!isFormValid || (isEdit && !hasChanges)"
-            >
-              {{ isEdit ? 'Değişiklikleri Uygula' : 'Tablo Oluştur' }}
-            </v-btn>
+          <div class="d-flex justify-space-between align-center">
+            <!-- Left Side Buttons -->
+            <div class="d-flex gap-3">
+              <v-btn
+                color="info"
+                variant="outlined"
+                @click="previewTable"
+                :disabled="loading || tableData.columns.length === 0"
+                prepend-icon="mdi-eye"
+              >
+                Önizleme
+              </v-btn>
+            </div>
+
+            <!-- Right Side Buttons -->
+            <div class="d-flex gap-3">
+              <v-btn color="grey" variant="outlined" @click="goBack" :disabled="loading">
+                İptal
+              </v-btn>
+              <v-btn
+                v-if="isEdit"
+                color="warning"
+                variant="outlined"
+                @click="resetChanges"
+                :disabled="loading || !hasChanges"
+                prepend-icon="mdi-restore"
+              >
+                Değişiklikleri Geri Al
+              </v-btn>
+              <v-btn
+                :color="isEdit && hasChanges ? 'success' : 'primary'"
+                type="submit"
+                :loading="loading"
+                :disabled="
+                  loading ||
+                  tableData.columns.length === 0 ||
+                  !isFormValid ||
+                  (isEdit && !hasChanges)
+                "
+                :prepend-icon="
+                  isEdit ? (hasChanges ? 'mdi-content-save' : 'mdi-check') : 'mdi-plus'
+                "
+              >
+                {{ isEdit ? (hasChanges ? 'Güncelle' : 'Güncel') : 'Oluştur' }}
+              </v-btn>
+            </div>
           </div>
         </v-col>
       </v-row>
@@ -290,21 +257,9 @@
     <v-dialog v-model="previewDialog" max-width="1000">
       <v-card>
         <v-card-title>
-          <span class="text-h6">
-            {{ isEdit ? 'Değişiklik Önizlemesi' : 'Tablo Önizleme' }}: {{ tableData.tableName }}
-          </span>
+          <span class="text-h6">Tablo Önizleme: {{ tableData.tableName }}</span>
         </v-card-title>
         <v-card-text>
-          <!-- Changes Summary for Edit Mode -->
-          <div v-if="isEdit && changesSummary" class="mb-4">
-            <v-alert type="info" variant="tonal">
-              <h4>Değişiklik Özeti:</h4>
-              <ul class="mt-2">
-                <li v-for="change in changesSummary" :key="change" v-html="change"></li>
-              </ul>
-            </v-alert>
-          </div>
-
           <v-table>
             <thead>
               <tr>
@@ -325,15 +280,6 @@
                       </v-icon>
                     </template>
                   </v-tooltip>
-                  <v-chip
-                    v-if="getColumnStatus(column) !== 'unchanged'"
-                    :color="getColumnStatusColor(column)"
-                    variant="tonal"
-                    size="x-small"
-                    class="ml-1"
-                  >
-                    {{ getColumnStatusLabel(column) }}
-                  </v-chip>
                 </th>
               </tr>
             </thead>
@@ -352,89 +298,7 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="primary" @click="previewDialog = false"> Kapat </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- DDL Commands Dialog -->
-    <v-dialog v-model="showDDLDialog" max-width="800" scrollable>
-      <v-card>
-        <v-card-title>
-          <v-icon class="mr-2">mdi-script-text</v-icon>
-          DDL Komutları
-        </v-card-title>
-        <v-card-text>
-          <v-alert type="warning" variant="tonal" class="mb-4">
-            Bu SQL komutları tablonuzda çalıştırılacak. Lütfen dikkatli inceleyin.
-          </v-alert>
-
-          <v-code class="mb-4">
-            <pre>{{ generatedDDL }}</pre>
-          </v-code>
-
-          <v-alert v-if="ddlWarnings.length > 0" type="error" variant="tonal">
-            <h4>Uyarılar:</h4>
-            <ul class="mt-2">
-              <li v-for="warning in ddlWarnings" :key="warning">{{ warning }}</li>
-            </ul>
-          </v-alert>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="grey" variant="text" @click="showDDLDialog = false">İptal</v-btn>
-          <v-btn
-            color="warning"
-            variant="elevated"
-            @click="executeDDL"
-            :loading="ddlExecuting"
-            :disabled="ddlWarnings.length > 0 && !forceUpdate"
-          >
-            DDL'i Çalıştır
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- DDL History Dialog -->
-    <v-dialog v-model="showHistoryDialog" max-width="900" scrollable>
-      <v-card>
-        <v-card-title>
-          <v-icon class="mr-2">mdi-history</v-icon>
-          Değişiklik Geçmişi
-        </v-card-title>
-        <v-card-text>
-          <v-timeline density="compact">
-            <v-timeline-item
-              v-for="(history, index) in ddlHistory"
-              :key="index"
-              :dot-color="history.success ? 'success' : 'error'"
-              size="small"
-            >
-              <template v-slot:icon>
-                <v-icon>{{ history.success ? 'mdi-check' : 'mdi-close' }}</v-icon>
-              </template>
-              <v-card variant="outlined">
-                <v-card-title class="text-subtitle-1">
-                  {{ history.operation }}
-                  <v-spacer></v-spacer>
-                  <v-chip size="small" variant="tonal">
-                    {{ formatDate(history.executedAt) }}
-                  </v-chip>
-                </v-card-title>
-                <v-card-text>
-                  <v-code>
-                    <pre>{{ history.sqlCommand }}</pre>
-                  </v-code>
-                  <p v-if="history.message" class="mt-2">{{ history.message }}</p>
-                </v-card-text>
-              </v-card>
-            </v-timeline-item>
-          </v-timeline>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="primary" @click="showHistoryDialog = false">Kapat</v-btn>
+          <v-btn color="primary" @click="previewDialog = false">Kapat</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -445,14 +309,45 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
-import {
-  apiService,
-  type ApiTable,
-  type ApiColumn,
-  type CreateTableRequest,
-  type UpdateTableRequest,
-  ColumnDataType,
-} from '@/services/api'
+import { apiService } from '@/services/api'
+
+// Interfaces
+interface ApiTable {
+  id: number
+  tableName: string
+  description: string
+  createdAt: string
+  columns: ApiColumn[]
+}
+
+interface ApiColumn {
+  id: number
+  columnName: string
+  dataType: number
+  isRequired: boolean
+  displayOrder: number
+  defaultValue: string
+}
+
+interface CreateTableRequest {
+  tableName: string
+  description: string
+  columns: {
+    columnName: string
+    dataType: number
+    isRequired: boolean
+    displayOrder: number
+    defaultValue: string
+  }[]
+}
+
+// API Data Type Enum matching backend
+enum ColumnDataType {
+  VARCHAR = 0,
+  INT = 1,
+  DECIMAL = 2,
+  DATETIME = 3,
+}
 
 // Composables
 const route = useRoute()
@@ -461,46 +356,33 @@ const toast = useToast()
 
 // Reactive Data
 const loading = ref(false)
-const ddlExecuting = ref(false)
 const previewDialog = ref(false)
-const showDDLDialog = ref(false)
-const showHistoryDialog = ref(false)
 const tableForm = ref()
+const hasChanges = ref(false)
 
-// Edit mode specific data
-const originalTableData = ref<any>(null)
-const allowTableRename = ref(false)
-const forceUpdate = ref(false)
-const showDDLPreview = ref(true)
-const generatedDDL = ref('')
-const ddlWarnings = ref<string[]>([])
-const ddlHistory = ref<any[]>([])
-const changesSummary = ref<string[]>([])
-
-// Table data structure
-interface TableColumn {
-  id?: number
-  columnName: string
-  dataType: ColumnDataType
-  isRequired: boolean
-  displayOrder: number
-  defaultValue?: string
-  maxLength?: number
-  isNew?: boolean
-  isModified?: boolean
-  isDeleted?: boolean
-  originalColumn?: any
-}
-
+// Table data structure matching API expectations
 const tableData = ref({
   tableName: '',
   description: '',
-  columns: [] as TableColumn[],
+  columns: [] as Array<{
+    columnName: string
+    dataType: ColumnDataType
+    isRequired: boolean
+    displayOrder: number
+    defaultValue?: string
+  }>,
 })
+
+// Original data for comparison (only for edit mode)
+const originalData = ref<typeof tableData.value | null>(null)
 
 // Computed
 const isEdit = computed(() => !!route.params.id)
 const tableId = computed(() => parseInt(route.params.id as string))
+
+const requiredColumnsCount = computed(
+  () => tableData.value.columns.filter((col) => col.isRequired).length,
+)
 
 const isFormValid = computed(() => {
   return (
@@ -521,29 +403,7 @@ const isFormValid = computed(() => {
   )
 })
 
-const hasChanges = computed(() => {
-  if (!isEdit.value || !originalTableData.value) return false
-
-  // Check table name change
-  if (allowTableRename.value && tableData.value.tableName !== originalTableData.value.tableName) {
-    return true
-  }
-
-  // Check description change
-  if (tableData.value.description !== originalTableData.value.description) {
-    return true
-  }
-
-  // Check column changes
-  return (
-    tableData.value.columns.some((col) => col.isNew || col.isModified || col.isDeleted) ||
-    originalTableData.value.columns.some(
-      (originalCol: any) => !tableData.value.columns.find((col) => col.id === originalCol.id),
-    )
-  )
-})
-
-// Column Types
+// Column Types based on API enum
 const columnTypes = [
   { title: 'Metin (VARCHAR)', value: ColumnDataType.VARCHAR },
   { title: 'Sayı (INT)', value: ColumnDataType.INT },
@@ -572,11 +432,16 @@ const rules = {
   },
   dataType: (value: any) => {
     if (value === null || value === undefined) return 'Veri tipi seçmelisiniz'
-    return true
-  },
-  maxLength: (value: number) => {
-    if (!value || value < 1) return 'Maksimum uzunluk en az 1 olmalıdır'
-    if (value > 8000) return 'Maksimum uzunluk en fazla 8000 olabilir'
+    if (
+      ![
+        ColumnDataType.VARCHAR,
+        ColumnDataType.INT,
+        ColumnDataType.DECIMAL,
+        ColumnDataType.DATETIME,
+      ].includes(value)
+    ) {
+      return 'Geçerli bir veri tipi seçin'
+    }
     return true
   },
 }
@@ -592,23 +457,18 @@ const loadTable = async () => {
     const loadedData = {
       tableName: table.tableName,
       description: table.description || '',
-      columns: table.columns.map((col: ApiColumn, index: number) => ({
-        id: col.id,
+      columns: table.columns.map((col, index) => ({
         columnName: col.columnName,
         dataType: col.dataType as ColumnDataType,
         isRequired: col.isRequired,
         displayOrder: col.displayOrder || index + 1,
         defaultValue: col.defaultValue || '',
-        maxLength: col.maxLength,
-        isNew: false,
-        isModified: false,
-        isDeleted: false,
-        originalColumn: { ...col },
       })),
     }
 
-    tableData.value = loadedData
-    originalTableData.value = JSON.parse(JSON.stringify(loadedData))
+    tableData.value = JSON.parse(JSON.stringify(loadedData))
+    originalData.value = JSON.parse(JSON.stringify(loadedData))
+    hasChanges.value = false
   } catch (error: any) {
     console.error('Table loading error:', error)
     toast.error(
@@ -620,188 +480,45 @@ const loadTable = async () => {
   }
 }
 
+const checkForChanges = () => {
+  if (!isEdit.value || !originalData.value) {
+    hasChanges.value = false
+    return
+  }
+
+  const currentDataStr = JSON.stringify(tableData.value)
+  const originalDataStr = JSON.stringify(originalData.value)
+  hasChanges.value = currentDataStr !== originalDataStr
+}
+
+const resetChanges = () => {
+  if (originalData.value) {
+    tableData.value = JSON.parse(JSON.stringify(originalData.value))
+    hasChanges.value = false
+    toast.info('Değişiklikler geri alındı')
+  }
+}
+
 const addColumn = () => {
-  const newColumn: TableColumn = {
+  tableData.value.columns.push({
     columnName: '',
     dataType: ColumnDataType.VARCHAR,
     isRequired: false,
     displayOrder: tableData.value.columns.length + 1,
     defaultValue: '',
-    maxLength: 255,
-    isNew: true,
-    isModified: false,
-    isDeleted: false,
-  }
+  })
 
-  tableData.value.columns.push(newColumn)
+  nextTick(() => {
+    checkForChanges()
+  })
 }
 
 const removeColumn = (index: number) => {
-  const column = tableData.value.columns[index]
-
-  if (column.isNew) {
-    // Yeni eklenen kolonu direkt sil
-    tableData.value.columns.splice(index, 1)
-  } else {
-    // Mevcut kolonu silinmiş olarak işaretle
-    column.isDeleted = true
-    tableData.value.columns.splice(index, 1)
-  }
+  tableData.value.columns.splice(index, 1)
+  checkForChanges()
 }
 
-const markColumnAsModified = (column: TableColumn) => {
-  if (!isEdit.value || column.isNew) return
-  column.isModified = true
-}
-
-const getColumnStatus = (column: TableColumn) => {
-  if (column.isNew) return 'new'
-  if (column.isModified) return 'modified'
-  if (column.isDeleted) return 'deleted'
-  return 'unchanged'
-}
-
-const getColumnStatusLabel = (column: TableColumn) => {
-  const status = getColumnStatus(column)
-  switch (status) {
-    case 'new':
-      return 'YENİ'
-    case 'modified':
-      return 'DEĞİŞTİ'
-    case 'deleted':
-      return 'SİLİNDİ'
-    default:
-      return ''
-  }
-}
-
-const getColumnStatusColor = (column: TableColumn) => {
-  const status = getColumnStatus(column)
-  switch (status) {
-    case 'new':
-      return 'success'
-    case 'modified':
-      return 'warning'
-    case 'deleted':
-      return 'error'
-    default:
-      return 'grey'
-  }
-}
-
-const getColumnCardClass = (column: TableColumn) => {
-  const status = getColumnStatus(column)
-  switch (status) {
-    case 'new':
-      return 'border-success'
-    case 'modified':
-      return 'border-warning'
-    case 'deleted':
-      return 'border-error'
-    default:
-      return ''
-  }
-}
-
-const generateChangesSummary = () => {
-  if (!isEdit.value || !originalTableData.value) return []
-
-  const summary: string[] = []
-
-  // Table name change
-  if (allowTableRename.value && tableData.value.tableName !== originalTableData.value.tableName) {
-    summary.push(
-      `<strong>Tablo adı:</strong> "${originalTableData.value.tableName}" → "${tableData.value.tableName}"`,
-    )
-  }
-
-  // Description change
-  if (tableData.value.description !== originalTableData.value.description) {
-    summary.push(`<strong>Açıklama değiştirildi</strong>`)
-  }
-
-  // New columns
-  const newColumns = tableData.value.columns.filter((col) => col.isNew)
-  newColumns.forEach((col) => {
-    summary.push(
-      `<strong>Yeni kolon:</strong> ${col.columnName} (${getColumnTypeLabel(col.dataType)})`,
-    )
-  })
-
-  // Modified columns
-  const modifiedColumns = tableData.value.columns.filter((col) => col.isModified)
-  modifiedColumns.forEach((col) => {
-    summary.push(`<strong>Değiştirilen kolon:</strong> ${col.columnName}`)
-  })
-
-  // Deleted columns
-  const deletedColumns = originalTableData.value.columns.filter(
-    (originalCol: any) => !tableData.value.columns.find((col) => col.id === originalCol.id),
-  )
-  deletedColumns.forEach((col: any) => {
-    summary.push(`<strong>Silinen kolon:</strong> ${col.columnName}`)
-  })
-
-  return summary
-}
-
-const generateDDL = async () => {
-  if (!isEdit.value) return
-
-  try {
-    // Prepare update request
-    const updateRequest: UpdateTableRequest = {
-      tableId: tableId.value,
-      tableName: allowTableRename.value ? tableData.value.tableName : undefined,
-      description: tableData.value.description,
-      columns: tableData.value.columns.map((col, index) => ({
-        columnId: col.id || 0,
-        columnName: col.columnName,
-        dataType: col.dataType,
-        isRequired: col.isRequired,
-        displayOrder: index + 1,
-        defaultValue: col.defaultValue || '',
-        forceUpdate: forceUpdate.value,
-      })),
-    }
-
-    // Get DDL preview from API
-    const response = await apiService.validateTableChanges(tableId.value, updateRequest)
-    generatedDDL.value = response.ddlCommands?.join('\n\n') || 'DDL komutları oluşturulamadı'
-    ddlWarnings.value = response.warnings || []
-  } catch (error: any) {
-    console.error('DDL generation error:', error)
-    toast.error('DDL komutları oluşturulurken hata oluştu')
-  }
-}
-
-const loadDDLHistory = async () => {
-  try {
-    ddlHistory.value = await apiService.getTableDDLHistory(tableId.value)
-    showHistoryDialog.value = true
-  } catch (error: any) {
-    console.error('DDL history loading error:', error)
-    toast.error('Değişiklik geçmişi yüklenirken hata oluştu')
-  }
-}
-
-const executeDDL = async () => {
-  ddlExecuting.value = true
-  try {
-    await saveTable()
-    showDDLDialog.value = false
-    toast.success('DDL komutları başarıyla uygulandı')
-  } catch (error) {
-    toast.error('DDL komutları uygulanırken hata oluştu')
-  } finally {
-    ddlExecuting.value = false
-  }
-}
-
-const showPreview = () => {
-  if (isEdit.value) {
-    changesSummary.value = generateChangesSummary()
-  }
+const previewTable = () => {
   previewDialog.value = true
 }
 
@@ -826,52 +543,63 @@ const saveTable = async () => {
     return
   }
 
+  // Validate column data types
+  const invalidColumns = tableData.value.columns.filter(
+    (col) =>
+      col.dataType === null ||
+      col.dataType === undefined ||
+      ![
+        ColumnDataType.VARCHAR,
+        ColumnDataType.INT,
+        ColumnDataType.DECIMAL,
+        ColumnDataType.DATETIME,
+      ].includes(col.dataType),
+  )
+  if (invalidColumns.length > 0) {
+    toast.error('Tüm kolonlar için geçerli veri tipi seçmelisiniz')
+    return
+  }
+
   loading.value = true
   try {
-    if (isEdit.value) {
-      // Update existing table
-      const updateRequest: UpdateTableRequest = {
-        tableId: tableId.value,
-        tableName: allowTableRename.value ? tableData.value.tableName : undefined,
-        description: tableData.value.description,
-        columns: tableData.value.columns.map((col, index) => ({
-          columnId: col.id || 0,
-          columnName: col.columnName.trim(),
-          dataType: col.dataType,
-          isRequired: col.isRequired,
-          displayOrder: index + 1,
-          defaultValue: col.defaultValue || '',
-          forceUpdate: forceUpdate.value,
-        })),
-      }
-
-      await apiService.updateTable(tableId.value, updateRequest)
-      toast.success('Tablo başarıyla güncellendi')
-    } else {
-      // Create new table
-      const createRequest: CreateTableRequest = {
-        tableName: tableData.value.tableName.trim(),
-        description: tableData.value.description.trim(),
-        columns: tableData.value.columns.map((col, index) => ({
-          columnName: col.columnName.trim(),
-          dataType: col.dataType,
-          isRequired: col.isRequired,
-          displayOrder: index + 1,
-          defaultValue: col.defaultValue || '',
-        })),
-      }
-
-      await apiService.createTable(createRequest)
-      toast.success('Tablo başarıyla oluşturuldu')
+    const apiData = {
+      tableName: tableData.value.tableName.trim(),
+      description: tableData.value.description.trim(),
+      columns: tableData.value.columns.map((col, index) => ({
+        columnName: col.columnName.trim(),
+        dataType: col.dataType,
+        isRequired: col.isRequired,
+        displayOrder: index + 1,
+        defaultValue: col.defaultValue || '',
+      })),
     }
 
-    router.push('/tables')
+    if (isEdit.value) {
+      await apiService.updateTable(tableId.value, apiData as any)
+      toast.success('Tablo başarıyla güncellendi')
+
+      // Update original data and reset changes flag
+      originalData.value = JSON.parse(JSON.stringify(tableData.value))
+      hasChanges.value = false
+    } else {
+      await apiService.createTable(apiData as CreateTableRequest)
+      toast.success('Tablo başarıyla oluşturuldu')
+      router.push('/tables')
+    }
   } catch (error: any) {
     console.error('Table save error:', error)
 
+    if (error.response) {
+      console.error('Error response data:', error.response.data)
+      console.error('Error response status:', error.response.status)
+    }
+
     const errorMessage =
       error.response?.data?.message ||
-      error.response?.data?.errors?.join(', ') ||
+      error.response?.data?.errors
+        ?.map((e: any) => Object.values(e))
+        .flat()
+        .join(', ') ||
       error.message ||
       'Bilinmeyen hata'
     toast.error(
@@ -883,10 +611,16 @@ const saveTable = async () => {
 }
 
 const goBack = () => {
-  router.push('/tables')
+  if (hasChanges.value) {
+    if (confirm('Kaydedilmemiş değişiklikleriniz var. Çıkmak istediğinizden emin misiniz?')) {
+      router.push('/tables')
+    }
+  } else {
+    router.push('/tables')
+  }
 }
 
-// Utility methods from original file
+// Utility functions
 const getColumnTypeLabel = (dataType: ColumnDataType): string => {
   switch (dataType) {
     case ColumnDataType.VARCHAR:
@@ -917,7 +651,7 @@ const getColumnTypeColor = (dataType: ColumnDataType): string => {
   }
 }
 
-const getSampleData = (column: TableColumn): string => {
+const getSampleData = (column: any): string => {
   switch (column.dataType) {
     case ColumnDataType.VARCHAR:
       return column.defaultValue || 'Örnek metin'
@@ -928,86 +662,41 @@ const getSampleData = (column: TableColumn): string => {
     case ColumnDataType.DATETIME:
       return column.defaultValue || new Date().toLocaleString('tr-TR')
     default:
-      return '-'
+      return 'Veri'
   }
 }
 
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleString('tr-TR')
-}
-
-// Watch for changes to generate DDL preview
-import { watch } from 'vue'
-
-watch(
-  () => tableData.value,
-  () => {
-    if (isEdit.value && showDDLPreview.value) {
-      nextTick(() => {
-        generateDDL()
-      })
-    }
-  },
-  { deep: true },
-)
-
-// Lifecycle
-onMounted(async () => {
-  await loadTable()
+// Initialize
+onMounted(() => {
+  loadTable()
 })
 </script>
 
 <style scoped>
 .column-card {
   transition: all 0.3s ease;
-  border-width: 2px;
+  height: 100%;
 }
 
 .column-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.border-success {
-  border-color: rgb(var(--v-theme-success)) !important;
-}
-
-.border-warning {
-  border-color: rgb(var(--v-theme-warning)) !important;
-}
-
-.border-error {
-  border-color: rgb(var(--v-theme-error)) !important;
-}
-
-.v-code {
-  background-color: #f5f5f5;
-  border-radius: 4px;
-  padding: 16px;
-  font-family: 'Courier New', monospace;
-  white-space: pre-wrap;
-  overflow-x: auto;
-}
-
-.v-code pre {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.v-timeline {
-  padding-left: 0;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Responsive adjustments */
 @media (max-width: 600px) {
-  .d-flex.justify-end {
+  .d-flex.justify-space-between {
     flex-direction: column;
-    gap: 8px;
+    gap: 16px;
   }
 
-  .d-flex.justify-end .v-btn {
+  .d-flex.gap-3 {
     width: 100%;
+    justify-content: stretch;
+  }
+
+  .d-flex.gap-3 .v-btn {
+    flex: 1;
   }
 }
 </style>

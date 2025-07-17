@@ -5,10 +5,7 @@
       <v-col cols="12">
         <div class="d-flex justify-space-between align-center">
           <div>
-            <h1 class="text-h4 font-weight-bold">Tablolarım</h1>
-            <p class="text-subtitle-1 text--secondary">
-              Oluşturduğunuz tabloları görüntüleyin ve yönetin
-            </p>
+            <h1 class="text-h4 font-weight-bold">TABLOLARIM</h1>
           </div>
           <v-btn color="primary" prepend-icon="mdi-plus" @click="createTable" class="elevation-2">
             Yeni Tablo
@@ -68,13 +65,6 @@
 
     <!-- Tables List -->
     <v-card>
-      <v-card-title>
-        <v-icon class="mr-2">mdi-table-multiple</v-icon>
-        Tablo Listesi
-        <v-spacer></v-spacer>
-        <v-chip color="primary" variant="tonal"> {{ filteredTables.length }} tablo </v-chip>
-      </v-card-title>
-
       <v-card-text>
         <div v-if="loading" class="text-center py-8">
           <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
@@ -349,24 +339,6 @@ const itemsPerPage = ref(9)
 const currentPage = ref(1)
 const selectedTable = ref<ApiTable | null>(null)
 const tables = ref<ApiTable[]>([])
-
-// Computed
-const activeTables = computed(() => tables.value.filter((table) => table.columns.length > 0))
-
-const totalColumns = computed(() =>
-  tables.value.reduce((total, table) => total + table.columns.length, 0),
-)
-
-const recentTablesCount = computed(() => {
-  const now = new Date()
-  const currentMonth = now.getMonth()
-  const currentYear = now.getFullYear()
-
-  return tables.value.filter((table) => {
-    const createdDate = new Date(table.createdAt)
-    return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear
-  }).length
-})
 
 const filteredTables = computed(() => {
   let filtered = [...tables.value]
