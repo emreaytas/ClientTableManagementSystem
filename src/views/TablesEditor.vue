@@ -343,10 +343,10 @@ interface CreateTableRequest {
 
 // API Data Type Enum matching backend
 enum ColumnDataType {
-  VARCHAR = 0,
-  INT = 1,
-  DECIMAL = 2,
-  DATETIME = 3,
+  VARCHAR = 1,
+  INT = 2,
+  DECIMAL = 3,
+  DATETIME = 4,
 }
 
 // Composables
@@ -393,12 +393,7 @@ const isFormValid = computed(() => {
         col.columnName.trim() !== '' &&
         col.dataType !== null &&
         col.dataType !== undefined &&
-        [
-          ColumnDataType.VARCHAR,
-          ColumnDataType.INT,
-          ColumnDataType.DECIMAL,
-          ColumnDataType.DATETIME,
-        ].includes(col.dataType),
+        [1, 2, 3, 4].includes(col.dataType), // [0,1,2,3] değil, [1,2,3,4]!
     )
   )
 })
@@ -430,16 +425,8 @@ const rules = {
       return 'Kolon adı geçersiz karakterler içeriyor'
     return true
   },
-  dataType: (value: any) => {
-    if (value === null || value === undefined) return 'Veri tipi seçmelisiniz'
-    if (
-      ![
-        ColumnDataType.VARCHAR,
-        ColumnDataType.INT,
-        ColumnDataType.DECIMAL,
-        ColumnDataType.DATETIME,
-      ].includes(value)
-    ) {
+  dataType: (value: number) => {
+    if (![1, 2, 3, 4].includes(value)) {
       return 'Geçerli bir veri tipi seçin'
     }
     return true
@@ -623,14 +610,14 @@ const goBack = () => {
 // Utility functions
 const getColumnTypeLabel = (dataType: ColumnDataType): string => {
   switch (dataType) {
-    case ColumnDataType.VARCHAR:
-      return 'VARCHAR'
-    case ColumnDataType.INT:
-      return 'INT'
-    case ColumnDataType.DECIMAL:
-      return 'DECIMAL'
-    case ColumnDataType.DATETIME:
-      return 'DATETIME'
+    case 1:
+      return 'VARCHAR' // case ColumnDataType.VARCHAR
+    case 2:
+      return 'INT' // case ColumnDataType.INT
+    case 3:
+      return 'DECIMAL' // case ColumnDataType.DECIMAL
+    case 4:
+      return 'DATETIME' // case ColumnDataType.DATETIME
     default:
       return 'UNKNOWN'
   }
@@ -638,29 +625,28 @@ const getColumnTypeLabel = (dataType: ColumnDataType): string => {
 
 const getColumnTypeColor = (dataType: ColumnDataType): string => {
   switch (dataType) {
-    case ColumnDataType.VARCHAR:
-      return 'blue'
-    case ColumnDataType.INT:
-      return 'green'
-    case ColumnDataType.DECIMAL:
-      return 'orange'
-    case ColumnDataType.DATETIME:
-      return 'purple'
+    case 1:
+      return 'blue' // VARCHAR
+    case 2:
+      return 'green' // INT
+    case 3:
+      return 'orange' // DECIMAL
+    case 4:
+      return 'purple' // DATETIME
     default:
       return 'grey'
   }
 }
-
 const getSampleData = (column: any): string => {
   switch (column.dataType) {
-    case ColumnDataType.VARCHAR:
-      return column.defaultValue || 'Örnek metin'
-    case ColumnDataType.INT:
-      return column.defaultValue || '123'
-    case ColumnDataType.DECIMAL:
-      return column.defaultValue || '123.45'
-    case ColumnDataType.DATETIME:
-      return column.defaultValue || new Date().toLocaleString('tr-TR')
+    case 1:
+      return column.defaultValue || 'Örnek metin' // VARCHAR
+    case 2:
+      return column.defaultValue || '123' // INT
+    case 3:
+      return column.defaultValue || '123.45' // DECIMAL
+    case 4:
+      return column.defaultValue || new Date().toLocaleString('tr-TR') // DATETIME
     default:
       return 'Veri'
   }

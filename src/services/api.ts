@@ -26,7 +26,7 @@ export interface ApiTable {
 export interface ApiColumn {
   id: number
   columnName: string
-  dataType: number // 0=VARCHAR, 1=INT, 2=DECIMAL, 3=DATETIME
+  dataType: number
   isRequired: boolean
   displayOrder: number
   defaultValue: string
@@ -63,12 +63,12 @@ export interface Dictionary<TKey extends string | number, TValue> {
 }
 
 // Tablo oluşturma isteği
-export interface CreateTableRequest {
+interface CreateTableRequest {
   tableName: string
   description: string
   columns: {
     columnName: string
-    dataType: number
+    dataType: number // 1=VARCHAR, 2=INT, 3=DECIMAL, 4=DATETIME
     isRequired: boolean
     displayOrder: number
     defaultValue: string
@@ -269,8 +269,12 @@ class ApiService {
   async createTable(data: CreateTableRequest): Promise<ApiTable> {
     try {
       console.log('Creating table with data:', data)
-      const response = await apiClient.post<ApiResponse<ApiTable>>('/Tables', data)
-      return response.data.data
+
+      // Backend endpoint: POST /api/Tables/CreateTable
+      const response = await apiClient.post<ApiResponse<ApiTable>>('/Tables/CreateTable', data)
+
+      console.log('Table created successfully:', response.data)
+      return response.data.data // Backend { success: true, data: ..., message: "..." } formatında döner
     } catch (error) {
       console.error('Error creating table:', error)
       throw this.extractError(error)

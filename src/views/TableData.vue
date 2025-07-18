@@ -148,7 +148,6 @@
                   hide-details="auto"
                   placeholder="Tam sayı giriniz..."
                 ></v-text-field>
-
                 <!-- DECIMAL Input - Backend enum: 3 -->
                 <v-text-field
                   v-else-if="column.dataType === 3"

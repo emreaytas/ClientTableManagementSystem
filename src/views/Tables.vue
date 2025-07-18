@@ -481,13 +481,13 @@ const formatDate = (dateString: string): string => {
 
 const getDataTypeLabel = (dataType: number): string => {
   switch (dataType) {
-    case 0:
-      return 'VARCHAR'
     case 1:
-      return 'INT'
+      return 'VARCHAR'
     case 2:
-      return 'DECIMAL'
+      return 'INT'
     case 3:
+      return 'DECIMAL'
+    case 4:
       return 'DATETIME'
     default:
       return 'UNKNOWN'
@@ -496,13 +496,13 @@ const getDataTypeLabel = (dataType: number): string => {
 
 const getDataTypeColor = (dataType: number): string => {
   switch (dataType) {
-    case 0:
-      return 'blue' // VARCHAR
     case 1:
-      return 'green' // INT
+      return 'blue' // VARCHAR
     case 2:
-      return 'orange' // DECIMAL
+      return 'green' // INT
     case 3:
+      return 'orange' // DECIMAL
+    case 4:
       return 'purple' // DATETIME
     default:
       return 'grey'
