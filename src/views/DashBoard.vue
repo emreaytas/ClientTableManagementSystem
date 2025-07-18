@@ -78,7 +78,11 @@
           <v-card-text v-else class="pa-0">
             <v-list lines="three" class="py-0">
               <template v-for="(table, index) in tables" :key="table.id">
-                <v-list-item @click="viewTableData(table.id)" class="table-item pa-6">
+                <v-list-item
+                  @click="viewTableData(table.id)"
+                  class="table-item pa-6 cursor-pointer"
+                  :ripple="true"
+                >
                   <template v-slot:prepend>
                     <v-avatar size="56" :color="getTableColor(index)" variant="tonal">
                       <v-icon icon="mdi-table" size="28"></v-icon>
@@ -118,13 +122,25 @@
                         color="primary"
                         variant="text"
                         @click.stop="editTable(table.id)"
-                      ></v-btn>
+                        class="mr-1"
+                      >
+                        <v-icon>mdi-pencil</v-icon>
+                        <v-tooltip activator="parent" location="top"> Tabloyu Düzenle </v-tooltip>
+                      </v-btn>
                       <v-btn
-                        icon="mdi-chevron-right"
+                        icon="mdi-database"
                         size="small"
-                        color="grey"
+                        color="success"
                         variant="text"
-                      ></v-btn>
+                        @click.stop="viewTableData(table.id)"
+                        class="mr-1"
+                      >
+                        <v-icon>mdi-database</v-icon>
+                        <v-tooltip activator="parent" location="top">
+                          Verileri Görüntüle
+                        </v-tooltip>
+                      </v-btn>
+                      <v-icon icon="mdi-chevron-right" size="20" color="grey-darken-1"></v-icon>
                     </div>
                   </template>
                 </v-list-item>
@@ -157,7 +173,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-
 import { useToast } from 'vue-toastification'
 import { apiService } from '@/services/api'
 
@@ -185,7 +200,6 @@ interface ApiColumn {
 
 // Composables
 const router = useRouter()
-
 const toast = useToast()
 
 // Reactive Data
@@ -245,6 +259,7 @@ const viewAllTables = () => {
   router.push('/tables')
 }
 
+// Ana güncelleme: Tabloya tıklandığında veri sayfasına git
 const viewTableData = (tableId: number) => {
   router.push(`/tables/${tableId}/data`)
 }
@@ -315,12 +330,17 @@ onMounted(async () => {
 }
 
 .table-item {
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .table-item:hover {
   background-color: rgba(0, 0, 0, 0.04);
+  transform: translateX(4px);
+}
+
+.cursor-pointer {
+  cursor: pointer;
 }
 
 .main-card {
