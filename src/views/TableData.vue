@@ -466,12 +466,24 @@ const openEditDialog = (item: TableRowData) => {
   editingItem.value = item
   formData.value = { ...item.values }
 
+  console.log('🟡 === OPEN EDIT DIALOG ===')
+  console.log('🟡 1. Edit item:', item)
+  console.log('🟡 2. Row ID (for update):', item.rowId)
+  console.log('🟡 3. RowIdentifier (for delete):', item.rowIdentifier)
+  console.log('🟡 4. Form data:', formData.value)
+
   // Convert datetime values for form input
   tableData.value.columns.forEach((column) => {
     if (column.dataType === 4 && formData.value[column.id]) {
       try {
         const date = new Date(formData.value[column.id])
         formData.value[column.id] = date.toISOString().slice(0, 16)
+        console.log(
+          '🟡 5. Converted datetime for column',
+          column.columnName,
+          ':',
+          formData.value[column.id],
+        )
       } catch {
         // Keep original value if conversion fails
       }
@@ -537,14 +549,14 @@ const saveData = async () => {
     console.log('🟡 8. Column count:', Object.keys(columnValues).length)
 
     if (editingItem.value) {
-      // Update existing data
+      // Update existing data - Row ID kullan
       const updateRequest: UpdateTableDataRequest = {
         tableId: tableId.value,
-        rowId: editingItem.value.rowIdentifier,
+        rowId: editingItem.value.rowId, // Row ID kullan (RowIdentifier değil)
         columnValues,
       }
 
-      console.log('🟡 9. Update request:', updateRequest)
+      console.log('🟡 9. Update request (using Row ID):', updateRequest)
       await apiService.updateTableData(updateRequest)
       toast.success('Kayıt başarıyla güncellendi')
     } else {

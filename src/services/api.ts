@@ -420,7 +420,6 @@ class ApiService {
       throw this.extractError(error)
     }
   }
-
   // TablesController silme endpoint'i
   async deleteTableData(tableId: number, rowId: number): Promise<void> {
     try {
@@ -551,6 +550,8 @@ class ApiService {
     const column = columns.find((col) => col.columnName === columnName)
     return column ? column.id : null
   }
+
+  // Form data'yı (column ID bazlı) backend formatına (column name bazlı) çevirme
   convertFormDataToBackendFormat(
     formData: Record<number, any>,
     columns: TableColumn[],
@@ -577,6 +578,8 @@ class ApiService {
     console.log('=== CONVERT FORM DATA TO BACKEND FORMAT END ===')
     return columnValues
   }
+
+  // Backend data'yı (column name bazlı) form formatına (column ID bazlı) çevirme
   convertBackendDataToFormFormat(
     backendData: Record<string, any>,
     columns: TableColumn[],
@@ -592,7 +595,6 @@ class ApiService {
 
     return formData
   }
-
   // Data type colors for UI - Backend enum uyumlu
   getDataTypeColor(dataType: number): string {
     switch (dataType) {
