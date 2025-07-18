@@ -6,7 +6,7 @@
           <v-btn icon="mdi-arrow-left" variant="text" @click="goBack" class="mr-3"></v-btn>
           <div>
             <h1 class="text-h4 font-weight-bold">
-              {{ isEdit ? 'Tablo Düzenle' : 'YENİ TABLO OLUŞTUR' }}
+              {{ isEdit ? 'TABLO DÜZENLE' : 'YENİ TABLO OLUŞTUR' }}
             </h1>
             <p class="text-subtitle-1 text--secondary">
               {{
@@ -20,7 +20,13 @@
       </v-col>
     </v-row>
 
-    <v-form ref="tableForm" @submit.prevent="saveTable">
+    <!-- Loading State for Edit Mode -->
+    <div v-if="loading && isEdit" class="text-center py-8">
+      <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
+      <p class="text-h6 mt-4">Tablo yükleniyor...</p>
+    </div>
+
+    <v-form v-else ref="tableForm" @submit.prevent="saveTable">
       <v-row>
         <!-- Table Info -->
         <v-col cols="12" lg="4">
@@ -341,6 +347,20 @@ interface CreateTableRequest {
   }[]
 }
 
+interface UpdateTableRequest {
+  tableId?: number
+  tableName: string
+  description: string
+  columns: {
+    columnName: string
+    dataType: number
+    isRequired: boolean
+    displayOrder: number
+    defaultValue: string
+    forceUpdate?: boolean
+  }[]
+}
+
 // API Data Type Enum matching backend
 enum ColumnDataType {
   VARCHAR = 1,
@@ -393,7 +413,7 @@ const isFormValid = computed(() => {
         col.columnName.trim() !== '' &&
         col.dataType !== null &&
         col.dataType !== undefined &&
-        [1, 2, 3, 4].includes(col.dataType), // [0,1,2,3] değil, [1,2,3,4]!
+        [1, 2, 3, 4].includes(col.dataType),
     )
   )
 })
@@ -439,18 +459,22 @@ const loadTable = async () => {
 
   loading.value = true
   try {
-    const table: ApiTable = await apiService.getTable(tableId.value)
+    console.log('Loading table with ID:', tableId.value)
+    const table: ApiTable = await apiService.getTableById(tableId.value)
+    console.log('Table loaded:', table)
 
     const loadedData = {
       tableName: table.tableName,
       description: table.description || '',
-      columns: table.columns.map((col, index) => ({
-        columnName: col.columnName,
-        dataType: col.dataType as ColumnDataType,
-        isRequired: col.isRequired,
-        displayOrder: col.displayOrder || index + 1,
-        defaultValue: col.defaultValue || '',
-      })),
+      columns: table.columns
+        .sort((a, b) => a.displayOrder - b.displayOrder)
+        .map((col, index) => ({
+          columnName: col.columnName,
+          dataType: col.dataType as ColumnDataType,
+          isRequired: col.isRequired,
+          displayOrder: col.displayOrder || index + 1,
+          defaultValue: col.defaultValue || '',
+        })),
     }
 
     tableData.value = JSON.parse(JSON.stringify(loadedData))
@@ -501,8 +525,16 @@ const addColumn = () => {
 }
 
 const removeColumn = (index: number) => {
-  tableData.value.columns.splice(index, 1)
-  checkForChanges()
+  if (confirm('Bu sütunu silmek istediğinizden emin misiniz?')) {
+    tableData.value.columns.splice(index, 1)
+
+    // Update display orders
+    tableData.value.columns.forEach((col, idx) => {
+      col.displayOrder = idx + 1
+    })
+
+    checkForChanges()
+  }
 }
 
 const previewTable = () => {
@@ -562,13 +594,22 @@ const saveTable = async () => {
     }
 
     if (isEdit.value) {
-      await apiService.updateTable(tableId.value, apiData as any)
+      // Tablo güncelleme
+      const updateData: UpdateTableRequest = {
+        tableId: tableId.value,
+        ...apiData,
+      }
+
+      console.log('Updating table with data:', updateData)
+      await apiService.updateTable(tableId.value, updateData)
       toast.success('Tablo başarıyla güncellendi')
 
       // Update original data and reset changes flag
       originalData.value = JSON.parse(JSON.stringify(tableData.value))
       hasChanges.value = false
     } else {
+      // Yeni tablo oluşturma
+      console.log('Creating table with data:', apiData)
       await apiService.createTable(apiData as CreateTableRequest)
       toast.success('Tablo başarıyla oluşturuldu')
       router.push('/tables')
@@ -581,14 +622,26 @@ const saveTable = async () => {
       console.error('Error response status:', error.response.status)
     }
 
-    const errorMessage =
-      error.response?.data?.message ||
-      error.response?.data?.errors
-        ?.map((e: any) => Object.values(e))
-        .flat()
-        .join(', ') ||
-      error.message ||
-      'Bilinmeyen hata'
+    // Improved error message handling
+    let errorMessage = 'Bilinmeyen hata'
+
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    } else if (error.response?.data?.errors) {
+      // Handle validation errors
+      const errors = error.response.data.errors
+      if (Array.isArray(errors)) {
+        errorMessage = errors
+          .map((e: any) => Object.values(e))
+          .flat()
+          .join(', ')
+      } else {
+        errorMessage = Object.values(errors).flat().join(', ')
+      }
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+
     toast.error(
       `Tablo ${isEdit.value ? 'güncellenirken' : 'oluşturulurken'} hata oluştu: ${errorMessage}`,
     )
@@ -637,6 +690,7 @@ const getColumnTypeColor = (dataType: ColumnDataType): string => {
       return 'grey'
   }
 }
+
 const getSampleData = (column: any): string => {
   switch (column.dataType) {
     case 1:
