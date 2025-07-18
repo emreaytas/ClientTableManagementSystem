@@ -1,615 +1,605 @@
-<template>
-  <v-container fluid>
-    <!-- Header Section -->
-    <v-row class="mb-4">
-      <v-col cols="12">
-        <div class="d-flex align-center justify-space-between">
-          <div>
-            <h1 class="text-h4 font-weight-bold">{{ tableInfo.tableName || 'Tablo Verileri' }}</h1>
-            <p class="text-subtitle-1 text-grey-600 mt-1">
-              {{ tableInfo.description || 'Tablo verilerini yönetin' }}
-            </p>
-          </div>
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-arrow-left"
-            variant="outlined"
-            @click="router.push('/dashboard')"
-          >
-            Dashboard'a Dön
-          </v-btn>
-        </div>
-      </v-col>
-    </v-row>
+// src/services/api.ts - TablesController Uyumlu API Service
 
-    <!-- Action Bar -->
-    <v-row class="mb-4">
-      <v-col cols="12" md="6">
-        <v-text-field
-          v-model="search"
-          prepend-inner-icon="mdi-magnify"
-          label="Kayıtlarda ara..."
-          variant="outlined"
-          hide-details
-          clearable
-        ></v-text-field>
-      </v-col>
-      <v-col cols="12" md="6" class="d-flex justify-end">
-        <v-btn
-          color="success"
-          prepend-icon="mdi-plus"
-          variant="elevated"
-          @click="openAddDialog"
-          :disabled="loading"
-        >
-          Yeni Kayıt
-        </v-btn>
-        <v-btn
-          color="info"
-          prepend-icon="mdi-refresh"
-          variant="outlined"
-          class="ml-2"
-          @click="loadTableData"
-          :loading="loading"
-        >
-          Yenile
-        </v-btn>
-      </v-col>
-    </v-row>
+import axios from 'axios'
 
-    <!-- Data Table -->
-    <v-card>
-      <v-card-text class="pa-0">
-        <v-data-table
-          :headers="dynamicHeaders"
-          :items="filteredTableData"
-          :loading="loading"
-          :items-per-page="itemsPerPage"
-          :search="search"
-          item-key="rowIdentifier"
-          class="elevation-0"
-          no-data-text="Henüz veri eklenmemiş"
-          loading-text="Veriler yükleniyor..."
-        >
-          <!-- Custom column rendering -->
-          <template
-            v-for="column in tableData.columns"
-            :key="column.id"
-            #[`item.col_${column.id}`]="{ item }"
-          >
-            <div class="text-truncate" style="max-width: 200px">
-              {{ formatCellValue(item.values[column.id], column.dataType) }}
-            </div>
-          </template>
+// ========== INTERFACES - Backend Uyumlu ==========
 
-          <!-- Actions column -->
-          <template #item.actions="{ item }">
-            <v-btn
-              icon="mdi-pencil"
-              size="x-small"
-              color="primary"
-              variant="text"
-              @click="openEditDialog(item)"
-            >
-              <v-icon>mdi-pencil</v-icon>
-              <v-tooltip activator="parent" location="top">
-                Düzenle
-              </v-tooltip>
-            </v-btn>
-            <v-btn
-              icon="mdi-delete"
-              size="x-small"
-              color="error"
-              variant="text"
-              @click="confirmDelete(item)"
-            >
-              <v-icon>mdi-delete</v-icon>
-              <v-tooltip activator="parent" location="top">
-                Sil
-              </v-tooltip>
-            </v-btn>
-          </template>
-        </v-data-table>
-      </v-card-text>
-    </v-card>
+// Backend'den gelen API yanıt yapısı
+export interface ApiResponse<T> {
+  success: boolean
+  data: T
+  message: string
+}
 
-    <!-- Add/Edit Dialog -->
-    <v-dialog v-model="showDialog" max-width="600px" persistent>
-      <v-card>
-        <v-card-title class="text-h5 bg-primary text-white">
-          {{ editingItem ? 'Kayıt Düzenle' : 'Yeni Kayıt Ekle' }}
-        </v-card-title>
+// Backend'den gelen tablo yapısı
+export interface ApiTable {
+  id: number
+  tableName: string
+  description: string
+  userId: number
+  createdAt: string
+  updatedAt: string | null
+  columns: ApiColumn[]
+}
 
-        <v-form ref="formRef" v-model="formValid" @submit.prevent="saveData">
-          <v-card-text class="pt-6">
-            <v-row>
-              <v-col
-                v-for="column in tableData.columns"
-                :key="column.id"
-                :cols="getColumnMdSize(column.dataType)"
-              >
-                <!-- VARCHAR Input - Backend enum: 1 -->
-                <v-text-field
-                  v-if="column.dataType === 1"
-                  v-model="formData[column.id]"
-                  :label="column.columnName"
-                  :required="column.isRequired"
-                  :rules="column.isRequired ? [rules.required] : []"
-                  variant="outlined"
-                  hide-details="auto"
-                  placeholder="Metin giriniz..."
-                ></v-text-field>
+// Backend'den gelen kolon yapısı
+export interface ApiColumn {
+  id: number
+  columnName: string
+  dataType: number // 0=VARCHAR, 1=INT, 2=DECIMAL, 3=DATETIME
+  isRequired: boolean
+  displayOrder: number
+  defaultValue: string
+  createdAt: string
+  updatedAt: string | null
+}
 
-                <!-- INT Input - Backend enum: 2 -->
-                <v-text-field
-                  v-else-if="column.dataType === 2"
-                  v-model="formData[column.id]"
-                  :label="column.columnName"
-                  :required="column.isRequired"
-                  :rules="column.isRequired ? [rules.required, rules.integer] : [rules.integer]"
-                  type="number"
-                  variant="outlined"
-                  hide-details="auto"
-                  placeholder="Tam sayı giriniz..."
-                ></v-text-field>
+// Tablo verisi - Backend'deki TableDataResponse yapısına uygun
+export interface TableData {
+  tableId: number
+  tableName: string
+  columns: TableColumn[]
+  data: Array<Dictionary<string, any>> // Backend'deki yapı
+}
 
-                <!-- DECIMAL Input - Backend enum: 3 -->
-                <v-text-field
-                  v-else-if="column.dataType === 3"
-                  v-model="formData[column.id]"
-                  :label="column.columnName"
-                  :required="column.isRequired"
-                  :rules="column.isRequired ? [rules.required, rules.decimal] : [rules.decimal]"
-                  type="number"
-                  step="0.01"
-                  variant="outlined"
-                  hide-details="auto"
-                  placeholder="Ondalık sayı giriniz..."
-                ></v-text-field>
+export interface TableColumn {
+  id: number
+  columnName: string
+  dataType: number
+  isRequired: boolean
+  displayOrder: number
+  defaultValue?: string
+}
 
-                <!-- DATETIME Input - Backend enum: 4 -->
-                <v-text-field
-                  v-else-if="column.dataType === 4"
-                  v-model="formData[column.id]"
-                  :label="column.columnName"
-                  :required="column.isRequired"
-                  :rules="column.isRequired ? [rules.required, rules.datetime] : [rules.datetime]"
-                  type="datetime-local"
-                  variant="outlined"
-                  hide-details="auto"
-                ></v-text-field>
+export interface TableRowData {
+  rowIdentifier: number
+  values: Record<string, any>
+}
 
-                <!-- Default/Unknown type -->
-                <v-text-field
-                  v-else
-                  v-model="formData[column.id]"
-                  :label="column.columnName"
-                  :required="column.isRequired"
-                  :rules="column.isRequired ? [rules.required] : []"
-                  variant="outlined"
-                  hide-details="auto"
-                  placeholder="Değer giriniz..."
-                ></v-text-field>
-              </v-col>
-            </v-row>
+// Dictionary type for backend compatibility
+export interface Dictionary<TKey extends string | number, TValue> {
+  [key: string]: TValue
+}
 
-            <!-- Form bilgilendirme metni -->
-            <v-alert
-              v-if="tableData.columns.length > 0"
-              type="info"
-              variant="tonal"
-              class="mt-4"
-              density="compact"
-            >
-              <v-icon start>mdi-information</v-icon>
-              <span class="text-caption">
-                Zorunlu alanlar (*) ile işaretlenmiştir.
-                Veri tipine uygun değerler giriniz.
-              </span>
-            </v-alert>
-          </v-card-text>
+// Tablo oluşturma isteği
+export interface CreateTableRequest {
+  tableName: string
+  description: string
+  columns: {
+    columnName: string
+    dataType: number
+    isRequired: boolean
+    displayOrder: number
+    defaultValue: string
+  }[]
+}
 
-          <v-card-actions class="px-6 pb-6">
-            <v-spacer></v-spacer>
-            <v-btn
-              color="grey-darken-1"
-              variant="outlined"
-              @click="closeDialog"
-              :disabled="saving"
-            >
-              İptal
-            </v-btn>
-            <v-btn
-              color="primary"
-              variant="elevated"
-              type="submit"
-              :loading="saving"
-              :disabled="!formValid"
-            >
-              {{ editingItem ? 'Güncelle' : 'Kaydet' }}
-            </v-btn>
-          </v-card-actions>
-        </v-form>
-      </v-card>
-    </v-dialog>
+// Tablo güncelleme isteği
+export interface UpdateTableRequest {
+  tableId: number
+  tableName: string
+  description: string
+  columns: UpdateColumnRequest[]
+}
 
-    <!-- Delete Confirmation Dialog -->
-    <v-dialog v-model="deleteDialog" max-width="400px">
-      <v-card>
-        <v-card-title class="text-h5 text-error">
-          Kayıt Sil
-        </v-card-title>
-        <v-card-text>
-          Bu kaydı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn
-            color="grey-darken-1"
-            variant="outlined"
-            @click="deleteDialog = false"
-            :disabled="deleting"
-          >
-            İptal
-          </v-btn>
-          <v-btn
-            color="error"
-            variant="elevated"
-            @click="deleteData"
-            :loading="deleting"
-          >
-            Sil
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-  </v-container>
-</template>
+// Kolon güncelleme isteği
+export interface UpdateColumnRequest {
+  columnId?: number // Yeni kolonlar için null
+  columnName: string
+  dataType: number
+  isRequired: boolean
+  displayOrder: number
+  defaultValue?: string
+  forceUpdate?: boolean
+}
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useToast } from 'vue-toastification'
-import { apiService } from '@/services/api'
-import type { ApiTable, TableData, TableRowData, AddTableDataRequest, UpdateTableDataRequest } from '@/services/api'
+// Giriş isteği - Backend'e uygun
+export interface LoginRequest {
+  userName: string // Backend'de userName kullanılıyor
+  password: string
+}
 
-// Route and Router
-const route = useRoute()
-const router = useRouter()
-const toast = useToast()
+// Kayıt isteği - Backend'e uygun
+export interface RegisterRequest {
+  firstName: string
+  lastName: string
+  email: string
+  userName: string
+  password: string
+  confirmPassword: string
+}
 
-// Table ID from route
-const tableId = computed(() => parseInt(route.params.id as string))
+// Giriş yanıtı - Backend'den gelen yapı
+export interface LoginResponse {
+  success: boolean
+  message: string
+  token?: string
+  user?: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    userName: string
+    emailConfirmed: boolean
+  }
+}
 
-// Reactive Data
-const loading = ref(true)
-const saving = ref(false)
-const deleting = ref(false)
-const search = ref('')
-const showDialog = ref(false)
-const deleteDialog = ref(false)
-const formValid = ref(false)
-const itemsPerPage = ref(25)
+// Kayıt yanıtı - Backend'den gelen yapı
+export interface RegisterResponse {
+  success: boolean
+  message: string
+  requiresEmailConfirmation?: boolean
+}
 
-// Table Info and Data
-const tableInfo = ref<ApiTable>({} as ApiTable)
-const tableData = ref<TableData>({
-  tableId: 0,
-  tableName: '',
-  columns: [],
-  data: []
+// Veri ekleme isteği - Column name bazlı
+export interface AddTableDataRequest {
+  tableId: number
+  columnValues: Record<string, string> // Column name → value
+}
+
+// Veri güncelleme isteği - Column name bazlı
+export interface UpdateTableDataRequest {
+  tableId: number
+  rowId: number
+  columnValues: Record<string, string> // Column name → value
+}
+
+// Dashboard istatistikleri
+export interface DashboardStats {
+  totalTables: number
+  totalRecords: number
+  tablesThisMonth: number
+  activeTables: number
+}
+
+// Data type enum - Backend uyumlu (1'den başlıyor)
+export enum ColumnDataType {
+  VARCHAR = 1,
+  INT = 2,
+  DECIMAL = 3,
+  DATETIME = 4,
+}
+
+// ========== AXIOS INSTANCE ==========
+
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://localhost:7018/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 30000,
 })
 
-// Form Data
-const formData = ref<Record<number, any>>({})
-const editingItem = ref<TableRowData | null>(null)
-const deleteItem = ref<TableRowData | null>(null)
-const formRef = ref<any>(null)
-
-// Computed Properties
-const dynamicHeaders = computed(() => {
-  const headers = tableData.value.columns.map((column) => ({
-    title: column.columnName,
-    key: `col_${column.id}`,
-    sortable: true,
-    width: getColumnWidth(column.dataType),
-  }))
-
-  headers.push({
-    title: 'İşlemler',
-    key: 'actions',
-    sortable: false,
-    width: 120,
-  })
-
-  return headers
-})
-
-const filteredTableData = computed(() => {
-  if (!search.value) return tableData.value.data
-
-  const searchLower = search.value.toLowerCase()
-  return tableData.value.data.filter((row) => {
-    return Object.values(row.values).some(
-      (value) => value && value.toString().toLowerCase().includes(searchLower),
-    )
-  })
-})
-
-// Validation Rules - Veri tipi uyumlu validasyon
-const rules = {
-  required: (value: any) => {
-    if (value === null || value === undefined || value === '') {
-      return 'Bu alan zorunludur'
+// Request interceptor - Token ekleme
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
     }
-    return true
+    return config
   },
-  integer: (value: any) => {
-    if (value === null || value === undefined || value === '') return true
-    const num = parseInt(value)
-    if (isNaN(num)) {
-      return 'Geçerli bir sayı giriniz'
+  (error) => {
+    return Promise.reject(error)
+  },
+)
+
+// Response interceptor - Hata yönetimi
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      if (window.location.pathname !== '/auth') {
+        window.location.href = '/auth'
+      }
     }
-    return true
+    return Promise.reject(error)
   },
-  decimal: (value: any) => {
-    if (value === null || value === undefined || value === '') return true
-    const num = parseFloat(value)
-    if (isNaN(num)) {
-      return 'Geçerli bir ondalık sayı giriniz'
-    }
-    return true
-  },
-  datetime: (value: any) => {
-    if (value === null || value === undefined || value === '') return true
+)
+
+// ========== API SERVICE CLASS ==========
+
+class ApiService {
+  // ========== AUTHENTICATION ==========
+
+  async login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
-      new Date(value)
-      return true
-    } catch {
-      return 'Geçerli bir tarih giriniz'
+      const response = await apiClient.post<LoginResponse>('/Auth/login', credentials)
+
+      if (response.data.success && response.data.token) {
+        localStorage.setItem('token', response.data.token)
+      }
+
+      return response.data
+    } catch (error) {
+      console.error('Login error:', error)
+      throw this.extractError(error)
     }
   }
-}
 
-// Utility Methods - Backend enum uyumlu
-const getColumnWidth = (dataType: number) => {
-  switch (dataType) {
-    case 1:
-      return 200 // VARCHAR
-    case 2:
-      return 120 // INT
-    case 3:
-      return 150 // DECIMAL
-    case 4:
-      return 180 // DATETIME
-    default:
-      return 150
-  }
-}
-
-const getColumnMdSize = (dataType: number) => {
-  switch (dataType) {
-    case 1:
-      return 12 // VARCHAR - full width
-    case 2:
-      return 6 // INT - half width
-    case 3:
-      return 6 // DECIMAL - half width
-    case 4:
-      return 6 // DATETIME - half width
-    default:
-      return 12
-  }
-}
-
-const formatCellValue = (value: any, dataType: number) => {
-  if (!value) return '-'
-
-  switch (dataType) {
-    case 4: // DATETIME
-      try {
-        return new Date(value).toLocaleString('tr-TR')
-      } catch {
-        return value
-      }
-    case 3: // DECIMAL
-      return parseFloat(value).toFixed(2)
-    default:
-      return value
-  }
-}
-
-const formatDate = (dateString: string) => {
-  if (!dateString) return '-'
-  try {
-    return new Date(dateString).toLocaleDateString('tr-TR')
-  } catch {
-    return dateString
-  }
-}
-
-// Data Loading Methods - Backend response handling with debug
-const loadTableInfo = async () => {
-  try {
-    tableInfo.value = await apiService.getTable(tableId.value)
-    console.log('Loaded table info:', tableInfo.value)
-  } catch (error) {
-    console.error('Table info loading error:', error)
-    toast.error('Tablo bilgileri yüklenirken hata oluştu')
-    router.push('/dashboard')
-  }
-}
-
-const loadTableData = async () => {
-  loading.value = true
-  try {
-    const response = await apiService.getTableData(tableId.value)
-    console.log('Raw backend response:', response)
-    console.log('Columns from backend:', response.columns)
-    console.log('Data from backend:', response.data)
-    tableData.value = response
-  } catch (error) {
-    console.error('Table data loading error:', error)
-    toast.error('Tablo verileri yüklenirken hata oluştu')
-  } finally {
-    loading.value = false
-  }
-}
-
-// Dialog Methods
-const openAddDialog = () => {
-  editingItem.value = null
-  formData.value = {}
-
-  // Initialize form data with default values
-  tableData.value.columns.forEach((column) => {
-    formData.value[column.id] = column.dataType === 3 ? '' : (column.defaultValue || '')
-  })
-
-  showDialog.value = true
-}
-
-const openEditDialog = (item: TableRowData) => {
-  editingItem.value = item
-  formData.value = { ...item.values }
-
-  // Convert datetime values for form input
-  tableData.value.columns.forEach((column) => {
-    if (column.dataType === 3 && formData.value[column.id]) {
-      try {
-        const date = new Date(formData.value[column.id])
-        formData.value[column.id] = date.toISOString().slice(0, 16)
-      } catch {
-        // Keep original value if conversion fails
-      }
+  async register(userData: RegisterRequest): Promise<RegisterResponse> {
+    try {
+      const response = await apiClient.post<RegisterResponse>('/Auth/register', userData)
+      return response.data
+    } catch (error) {
+      console.error('Register error:', error)
+      throw this.extractError(error)
     }
-  })
+  }
 
-  showDialog.value = true
-}
+  async confirmEmail(token: string, email: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await apiClient.post('/Auth/confirm-email', { token, email })
+      return response.data
+    } catch (error) {
+      console.error('Email confirmation error:', error)
+      throw this.extractError(error)
+    }
+  }
 
-const closeDialog = () => {
-  showDialog.value = false
-  editingItem.value = null
-  formData.value = {}
-  formRef.value?.resetValidation()
-}
+  // ========== TABLES ==========
 
-const confirmDelete = (item: TableRowData) => {
-  deleteItem.value = item
-  deleteDialog.value = true
-}
+  async getAllTables(): Promise<ApiResponse<ApiTable[]>> {
+    try {
+      const response = await apiClient.get<ApiResponse<ApiTable[]>>('/Tables')
+      return response.data
+    } catch (error) {
+      console.error('Error fetching tables:', error)
+      throw this.extractError(error)
+    }
+  }
 
-// CRUD Operations
-const saveData = async () => {
-  if (!formRef.value?.validate()) return
+  async getTableById(id: number): Promise<ApiTable> {
+    try {
+      const response = await apiClient.get<ApiResponse<ApiTable>>(`/Tables/${id}`)
+      return response.data.data
+    } catch (error) {
+      console.error('Error fetching table:', error)
+      throw this.extractError(error)
+    }
+  }
 
-  saving.value = true
-  try {
-    // Convert form data to proper format
-    const columnValues: Record<number, string> = {}
-    tableData.value.columns.forEach((column) => {
-      const value = formData.value[column.id]
-      if (value !== null && value !== undefined && value !== '') {
-        columnValues[column.id] = value.toString()
+  // Alias for backward compatibility
+  async getTable(id: number): Promise<ApiTable> {
+    return this.getTableById(id)
+  }
+
+  async createTable(data: CreateTableRequest): Promise<ApiTable> {
+    try {
+      console.log('Creating table with data:', data)
+      const response = await apiClient.post<ApiResponse<ApiTable>>('/Tables', data)
+      return response.data.data
+    } catch (error) {
+      console.error('Error creating table:', error)
+      throw this.extractError(error)
+    }
+  }
+
+  async updateTable(id: number, data: UpdateTableRequest): Promise<ApiTable> {
+    try {
+      console.log('Updating table with data:', data)
+      const response = await apiClient.put<ApiResponse<ApiTable>>(`/Tables/${id}`, data)
+      return response.data.data
+    } catch (error) {
+      console.error('Error updating table:', error)
+      throw this.extractError(error)
+    }
+  }
+
+  async deleteTable(id: number): Promise<void> {
+    try {
+      await apiClient.delete(`/Tables/${id}`)
+    } catch (error) {
+      console.error('Error deleting table:', error)
+      throw this.extractError(error)
+    }
+  }
+
+  // ========== TABLE DATA - TablesController Endpoints ==========
+
+  // TablesController: GET /Tables/{id}/data
+  async getTableData(tableId: number): Promise<TableData> {
+    try {
+      console.log('Getting table data from TablesController:', tableId)
+      const response = await apiClient.get<ApiResponse<any>>(`/Tables/${tableId}/data`)
+
+      // Backend'den gelen veriyi frontend formatına çevir
+      const backendData = response.data.data
+
+      // TableData formatına dönüştür
+      const transformedData: TableData = {
+        tableId: backendData.tableId,
+        tableName: backendData.tableName,
+        columns: backendData.columns || [],
+        data: this.transformBackendDataToRows(backendData.data || [], backendData.columns || []),
+      }
+
+      return transformedData
+    } catch (error) {
+      console.error('Error fetching table data:', error)
+      throw this.extractError(error)
+    }
+  }
+
+  // Backend'den gelen Dictionary<string, object>[] formatını frontend'in beklediği TableRowData[] formatına çevir
+  private transformBackendDataToRows(
+    backendData: Array<Dictionary<string, any>>,
+    columns: any[],
+  ): TableRowData[] {
+    if (!backendData || backendData.length === 0) return []
+
+    return backendData.map((row, index) => {
+      const values: Record<string, any> = {}
+
+      // Backend'den gelen veriyi column name ile map et
+      columns.forEach((column) => {
+        // Column name ile değeri bul
+        const columnName = column.columnName
+        const columnValue = row[columnName]
+
+        // Hem column ID hem de column name ile erişilebilir yap
+        values[column.id] = columnValue || null
+        values[`col_${column.id}`] = columnValue || null
+      })
+
+      return {
+        rowIdentifier: row['Id'] || row['id'] || row['RowId'] || index + 1, // Backend'den gelen ID varsa kullan
+        values: values,
       }
     })
+  }
 
-    if (editingItem.value) {
-      // Update existing data
-      const updateRequest: UpdateTableDataRequest = {
-        tableId: tableId.value,
-        rowId: editingItem.value.rowIdentifier,
-        columnValues
+  // ========== TABLE DATA OPERATIONS - Doğru Backend DTO Format ==========
+
+  // ========== TABLE DATA OPERATIONS - Detaylı Debug ile ==========
+
+  async addTableData(data: AddTableDataRequest): Promise<void> {
+    try {
+      console.log('=== ADD TABLE DATA DEBUG (Swagger Format Test) ===')
+      console.log('1. Input data:', data)
+      console.log('2. TableId:', data.tableId)
+      console.log('3. ColumnValues:', data.columnValues)
+      console.log('4. Column Names:', Object.keys(data.columnValues))
+      console.log('5. Column Values:', Object.values(data.columnValues))
+
+      // İlk önce backend'in örneğindeki formatla deneyelim
+      const fullFormatBody = {
+        tableId: data.tableId,
+        columnValues: data.columnValues,
       }
-      await apiService.updateTableData(updateRequest)
-      toast.success('Kayıt başarıyla güncellendi')
+
+      console.log('6. Trying full format first:', JSON.stringify(fullFormatBody, null, 2))
+      console.log('7. Request URL:', `/Tables/${data.tableId}/data`)
+
+      try {
+        // Backend'in verdiği örnek format ile dene
+        const response = await apiClient.post(`/Tables/${data.tableId}/data`, fullFormatBody)
+        console.log('8. Success with full format:', response.data)
+        console.log('=== ADD TABLE DATA SUCCESS (Full Format) ===')
+        return
+      } catch (fullFormatError: any) {
+        console.log(
+          '9. Full format failed, trying Dictionary only:',
+          fullFormatError.response?.status,
+        )
+        console.log('10. Full format error:', fullFormatError.response?.data)
+
+        // Eğer full format çalışmazsa, sadece columnValues dene (PUT gibi)
+        const dictOnlyBody = data.columnValues
+        console.log('11. Trying Dictionary only format:', JSON.stringify(dictOnlyBody, null, 2))
+
+        try {
+          const response = await apiClient.post(`/Tables/${data.tableId}/data`, dictOnlyBody)
+          console.log('12. Success with Dictionary only:', response.data)
+          console.log('=== ADD TABLE DATA SUCCESS (Dictionary Only) ===')
+          return
+        } catch (dictError: any) {
+          console.log('13. Dictionary only also failed:', dictError.response?.data)
+          throw dictError // En son hatayı fırlat
+        }
+      }
+    } catch (error: any) {
+      console.log('=== ADD TABLE DATA ERROR (Both Formats Failed) ===')
+      console.log('14. Final error object:', error)
+      console.log('15. Error response data:', error.response?.data)
+      console.log('16. Error response status:', error.response?.status)
+      console.log('17. Error config URL:', error.config?.url)
+      console.log('18. Error config data:', error.config?.data)
+
+      // Backend'den gelen gerçek hata mesajını kontrol et
+      if (error.response?.data) {
+        console.log('19. Backend error details:', JSON.stringify(error.response.data, null, 2))
+      }
+
+      console.log('=== ADD TABLE DATA ERROR END ===')
+
+      console.error('Error adding table data (swagger format test):', error)
+      throw this.extractError(error)
+    }
+  }
+
+  // TableDataController güncelleme endpoint'i henüz tam implementasyon yok
+  // TablesController'ı kullanıyoruz: PUT /Tables/{id}/data/{rowIdentifier}
+  async updateTableData(data: UpdateTableDataRequest): Promise<void> {
+    try {
+      console.log('=== UPDATE TABLE DATA DEBUG ===')
+      console.log('1. Input data:', data)
+      console.log('2. TableId:', data.tableId)
+      console.log('3. RowId:', data.rowId)
+      console.log('4. ColumnValues:', data.columnValues)
+
+      // Backend sadece Dictionary<string, string> bekliyor (columnValues)
+      // Request body'de tableId veya rowId göndermiyoruz, URL'de var
+      const requestBody = data.columnValues // Sadece column values
+
+      console.log('5. Request body (only columnValues):', requestBody)
+      console.log('6. Request URL:', `/Tables/${data.tableId}/data/${data.rowId}`)
+
+      // TablesController endpoint: PUT /Tables/{tableId}/data/{rowId}
+      const response = await apiClient.put(
+        `/Tables/${data.tableId}/data/${data.rowId}`,
+        requestBody,
+      )
+
+      console.log('7. Success response:', response.data)
+      console.log('=== UPDATE TABLE DATA SUCCESS ===')
+    } catch (error: any) {
+      console.log('=== UPDATE TABLE DATA ERROR ===')
+      console.log('8. Error object:', error)
+      console.log('9. Error response data:', error.response?.data)
+      console.log('10. Error response status:', error.response?.status)
+      console.log('=== UPDATE TABLE DATA ERROR END ===')
+
+      console.error('Error updating table data:', error)
+      throw this.extractError(error)
+    }
+  }
+
+  // TablesController silme endpoint'i
+  async deleteTableData(tableId: number, rowId: number): Promise<void> {
+    try {
+      console.log('Deleting table data via TablesController:', { tableId, rowId })
+      // TablesController endpoint: DELETE /Tables/{tableId}/data/{rowId}
+      await apiClient.delete(`/Tables/${tableId}/data/${rowId}`)
+    } catch (error) {
+      console.error('Error deleting table data:', error)
+      throw this.extractError(error)
+    }
+  }
+
+  // ========== UTILITY METHODS ==========
+
+  // Hata çıkarma yardımcı metodu - 500 hataları için özel handling
+  private extractError(error: any): Error {
+    console.log('=== EXTRACT ERROR DEBUG ===')
+    console.log('Raw error:', error)
+
+    if (error.response) {
+      console.log('Response error detected')
+      console.log('Status:', error.response.status)
+      console.log('Status text:', error.response.statusText)
+      console.log('Response data:', error.response.data)
+      console.log('Response headers:', error.response.headers)
+
+      // 500 Internal Server Error için özel handling
+      if (error.response.status === 500) {
+        console.log('500 Internal Server Error detected')
+
+        if (error.response.data?.message) {
+          console.log('Backend 500 message:', error.response.data.message)
+          return new Error(`Server Error: ${error.response.data.message}`)
+        }
+
+        if (error.response.data?.title) {
+          console.log('Backend 500 title:', error.response.data.title)
+          return new Error(`Server Error: ${error.response.data.title}`)
+        }
+
+        // Backend'den detaylı hata bilgisi varsa
+        if (error.response.data) {
+          const errorData =
+            typeof error.response.data === 'string'
+              ? error.response.data
+              : JSON.stringify(error.response.data)
+          console.log('Raw 500 error data:', errorData)
+          return new Error(`Sunucu hatası (500): ${errorData}`)
+        }
+
+        return new Error(
+          "Sunucu hatası (500): Backend'de bir sorun oluştu. Lütfen backend loglarını kontrol edin.",
+        )
+      }
+
+      // Backend'den gelen hata mesajı (diğer status kodları için)
+      if (error.response.data?.message) {
+        console.log('Backend message found:', error.response.data.message)
+        return new Error(error.response.data.message)
+      }
+
+      // Validation errors
+      if (error.response.data?.errors) {
+        console.log('Validation errors found:', error.response.data.errors)
+        const errorMessages = []
+        for (const [field, messages] of Object.entries(error.response.data.errors)) {
+          if (Array.isArray(messages)) {
+            errorMessages.push(`${field}: ${messages.join(', ')}`)
+          }
+        }
+        return new Error(`Validation errors: ${errorMessages.join('; ')}`)
+      }
+
+      // Generic HTTP error
+      if (error.response.status) {
+        const message = `HTTP ${error.response.status}: ${error.response.statusText}`
+        console.log('HTTP error message:', message)
+        return new Error(message)
+      }
+
+      // Raw response data
+      if (error.response.data) {
+        const message =
+          typeof error.response.data === 'string'
+            ? error.response.data
+            : JSON.stringify(error.response.data)
+        console.log('Raw response data message:', message)
+        return new Error(message)
+      }
+    } else if (error.request) {
+      console.log('Request error - no response received')
+      console.log('Request:', error.request)
+      return new Error('Sunucuya ulaşılamıyor. Bağlantıyı kontrol edin.')
+    } else if (error.message) {
+      console.log('General error message:', error.message)
+      return new Error(error.message)
     } else {
-      // Add new data
-      const addRequest: AddTableDataRequest = {
-        tableId: tableId.value,
-        columnValues
-      }
-      await apiService.addTableData(addRequest)
-      toast.success('Kayıt başarıyla eklendi')
+      console.log('Unknown error')
+      return new Error('Bilinmeyen bir hata oluştu')
     }
 
-    closeDialog()
-    await loadTableData()
-  } catch (error: any) {
-    console.error('Save data error:', error)
-    toast.error(error.message || 'Kayıt kaydedilirken hata oluştu')
-  } finally {
-    saving.value = false
+    console.log('=== EXTRACT ERROR DEBUG END ===')
+  }
+
+  // Data type labels for UI - Backend enum uyumlu
+  getDataTypeLabel(dataType: number): string {
+    switch (dataType) {
+      case 1:
+        return 'Metin'
+      case 2:
+        return 'Sayı'
+      case 3:
+        return 'Ondalık'
+      case 4:
+        return 'Tarih'
+      default:
+        return 'Bilinmiyor'
+    }
+  }
+
+  // Data type colors for UI - Backend enum uyumlu
+  getDataTypeColor(dataType: number): string {
+    switch (dataType) {
+      case 1:
+        return 'primary'
+      case 2:
+        return 'success'
+      case 3:
+        return 'warning'
+      case 4:
+        return 'info'
+      default:
+        return 'grey'
+    }
+  }
+
+  // Backward compatibility methods
+  async getTables(): Promise<ApiTable[]> {
+    const response = await this.getAllTables()
+    return response.data
   }
 }
 
-const deleteData = async () => {
-  if (!deleteItem.value) return
+// Singleton instance
+export const apiService = new ApiService()
 
-  deleting.value = true
-  try {
-    await apiService.deleteTableData(tableId.value, deleteItem.value.rowIdentifier)
-    toast.success('Kayıt başarıyla silindi')
-    deleteDialog.value = false
-    deleteItem.value = null
-    await loadTableData()
-  } catch (error: any) {
-    console.error('Delete data error:', error)
-    toast.error(error.message || 'Kayıt silinirken hata oluştu')
-  } finally {
-    deleting.value = false
-  }
-}
-
-// Lifecycle
-onMounted(async () => {
-  await Promise.all([
-    loadTableInfo(),
-    loadTableData()
-  ])
-})
-</script>
-
-<style scoped>
-.v-data-table {
-  border-radius: 8px;
-}
-
-.v-data-table :deep(.v-data-table__wrapper) {
-  border-radius: 8px;
-}
-
-.text-truncate {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Form styling */
-.v-dialog .v-card {
-  border-radius: 12px;
-}
-
-.v-card-title.bg-primary {
-  border-top-left-radius: 12px !important;
-  border-top-right-radius: 12px !important;
-}
-
-/* Responsive adjustments */
-@media (max-width: 600px) {
-  .d-flex.justify-space-between {
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .d-flex.justify-end {
-    justify-content: flex-start !important;
-  }
-
-  .d-flex.justify-end .v-btn {
-    width: 100%;
-    margin: 0 0 8px 0 !important;
-  }
-}
-</style>
+export default apiService
