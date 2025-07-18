@@ -289,7 +289,7 @@ const tableData = ref<TableData>({
   data: [],
 })
 
-// Form Data
+// Form Data - Column ID bazlı (UI için)
 const formData = ref<Record<number, any>>({})
 const editingItem = ref<TableRowData | null>(null)
 const deleteItem = ref<TableRowData | null>(null)
@@ -325,7 +325,7 @@ const filteredTableData = computed(() => {
   })
 })
 
-// Validation Rules - Veri tipi uyumlu validasyon
+// Validation Rules
 const rules = {
   required: (value: any) => {
     if (value === null || value === undefined || value === '') {
@@ -360,7 +360,7 @@ const rules = {
   },
 }
 
-// Utility Methods - Backend enum uyumlu
+// Utility Methods
 const getColumnWidth = (dataType: number) => {
   switch (dataType) {
     case 1:
@@ -408,20 +408,11 @@ const formatCellValue = (value: any, dataType: number) => {
   }
 }
 
-const formatDate = (dateString: string) => {
-  if (!dateString) return '-'
-  try {
-    return new Date(dateString).toLocaleDateString('tr-TR')
-  } catch {
-    return dateString
-  }
-}
-
-// Data Loading Methods - Backend response handling with debug
+// Data Loading Methods
 const loadTableInfo = async () => {
   try {
     tableInfo.value = await apiService.getTable(tableId.value)
-    console.log('Loaded table info:', tableInfo.value)
+    console.log('🔵 Loaded table info:', tableInfo.value)
   } catch (error) {
     console.error('Table info loading error:', error)
     toast.error('Tablo bilgileri yüklenirken hata oluştu')
@@ -432,11 +423,24 @@ const loadTableInfo = async () => {
 const loadTableData = async () => {
   loading.value = true
   try {
+    console.log('🔵 === LOAD TABLE DATA ===')
+    console.log('🔵 1. Loading data for table ID:', tableId.value)
+
     const response = await apiService.getTableData(tableId.value)
-    console.log('Raw backend response:', response)
-    console.log('Columns from backend:', response.columns)
-    console.log('Data from backend:', response.data)
+
+    console.log('🔵 2. Received response:', response)
+    console.log('🔵 3. Number of rows:', response.data.length)
+    console.log('🔵 4. Row details:')
+    response.data.forEach((row, index) => {
+      console.log(`🔵   Row ${index}:`, {
+        rowIdentifier: row.rowIdentifier,
+        values: row.values,
+      })
+    })
+
     tableData.value = response
+    console.log('🔵 5. Table data updated in state')
+    console.log('🔵 === LOAD TABLE DATA COMPLETE ===')
   } catch (error) {
     console.error('Table data loading error:', error)
     toast.error('Tablo verileri yüklenirken hata oluştu')
@@ -452,7 +456,7 @@ const openAddDialog = () => {
 
   // Initialize form data with default values
   tableData.value.columns.forEach((column) => {
-    formData.value[column.id] = column.dataType === 3 ? '' : column.defaultValue || ''
+    formData.value[column.id] = column.defaultValue || ''
   })
 
   showDialog.value = true
@@ -464,7 +468,7 @@ const openEditDialog = (item: TableRowData) => {
 
   // Convert datetime values for form input
   tableData.value.columns.forEach((column) => {
-    if (column.dataType === 3 && formData.value[column.id]) {
+    if (column.dataType === 4 && formData.value[column.id]) {
       try {
         const date = new Date(formData.value[column.id])
         formData.value[column.id] = date.toISOString().slice(0, 16)
@@ -489,20 +493,48 @@ const confirmDelete = (item: TableRowData) => {
   deleteDialog.value = true
 }
 
-// CRUD Operations
+// CRUD Operations - Column Name Bazlı
 const saveData = async () => {
   if (!formRef.value?.validate()) return
 
   saving.value = true
   try {
-    // Convert form data to proper format
-    const columnValues: Record<number, string> = {}
+    console.log('🟡 === SAVE DATA DEBUG ===')
+    console.log('🟡 1. Form data (column ID based):', formData.value)
+    console.log('🟡 2. Available columns:', tableData.value.columns)
+
+    // Manual conversion - debug her adımı + tarih formatı düzeltme
+    const columnValues: Record<string, string> = {}
+
     tableData.value.columns.forEach((column) => {
       const value = formData.value[column.id]
+      console.log(
+        `🟡 3. Processing column ${column.id} (${column.columnName}): "${value}" (dataType: ${column.dataType})`,
+      )
+
       if (value !== null && value !== undefined && value !== '') {
-        columnValues[column.id] = value.toString()
+        let processedValue = value.toString()
+
+        // DATETIME (dataType 4) formatını düzelt
+        if (column.dataType === 4) {
+          // Frontend'den gelen format: "2025-07-18T14:50"
+          // Backend'in beklediği format: "2025-07-18T14:50:00"
+          if (processedValue.length === 16) {
+            // "2025-07-18T14:50" formatı
+            processedValue = processedValue + ':00'
+            console.log(`🟡 4. Fixed datetime format: "${processedValue}"`)
+          }
+        }
+
+        columnValues[column.columnName] = processedValue
+        console.log(`🟡 5. Added: ${column.columnName} = "${processedValue}"`)
+      } else {
+        console.log(`🟡 6. Skipped empty value for: ${column.columnName}`)
       }
     })
+
+    console.log('🟡 7. Final columnValues:', columnValues)
+    console.log('🟡 8. Column count:', Object.keys(columnValues).length)
 
     if (editingItem.value) {
       // Update existing data
@@ -511,14 +543,18 @@ const saveData = async () => {
         rowId: editingItem.value.rowIdentifier,
         columnValues,
       }
+
+      console.log('🟡 9. Update request:', updateRequest)
       await apiService.updateTableData(updateRequest)
       toast.success('Kayıt başarıyla güncellendi')
     } else {
-      // Add new data
+      // Add new data - EXACT Swagger format
       const addRequest: AddTableDataRequest = {
         tableId: tableId.value,
         columnValues,
       }
+
+      console.log('🟡 9. Add request (EXACT Swagger format):', addRequest)
       await apiService.addTableData(addRequest)
       toast.success('Kayıt başarıyla eklendi')
     }
@@ -526,7 +562,7 @@ const saveData = async () => {
     closeDialog()
     await loadTableData()
   } catch (error: any) {
-    console.error('Save data error:', error)
+    console.error('🔴 Save data error:', error)
     toast.error(error.message || 'Kayıt kaydedilirken hata oluştu')
   } finally {
     saving.value = false
@@ -534,17 +570,43 @@ const saveData = async () => {
 }
 
 const deleteData = async () => {
-  if (!deleteItem.value) return
+  if (!deleteItem.value) {
+    console.log('🔴 DELETE: No item selected for deletion')
+    return
+  }
 
   deleting.value = true
   try {
-    await apiService.deleteTableData(tableId.value, deleteItem.value.rowIdentifier)
+    console.log('🔴 === DELETE DATA DEBUG ===')
+    console.log('🔴 1. Delete item full object:', deleteItem.value)
+    console.log('🔴 2. Table ID:', tableId.value)
+    console.log('🔴 3. Row ID (rowIdentifier):', deleteItem.value.rowIdentifier)
+    console.log('🔴 4. Item values:', deleteItem.value.values)
+
+    // RowIdentifier değerini kontrol et - backend'den gelen RowIdentifier kullanılmalı
+    const rowId = deleteItem.value.rowIdentifier
+    if (!rowId) {
+      console.error('🔴 ERROR: RowIdentifier is missing or invalid:', rowId)
+      toast.error("Kayıt ID'si bulunamadı")
+      return
+    }
+
+    console.log('🔴 5. Making DELETE request to: /Tables/' + tableId.value + '/data/' + rowId)
+    await apiService.deleteTableData(tableId.value, rowId)
+
+    console.log('🟢 6. Delete successful - refreshing table data...')
     toast.success('Kayıt başarıyla silindi')
+
+    // Dialog'u kapat
     deleteDialog.value = false
     deleteItem.value = null
+
+    // Tabloyu yeniden yükle
+    console.log('🟢 7. Reloading table data...')
     await loadTableData()
+    console.log('🟢 8. Table data reloaded successfully!')
   } catch (error: any) {
-    console.error('Delete data error:', error)
+    console.error('🔴 Delete data error:', error)
     toast.error(error.message || 'Kayıt silinirken hata oluştu')
   } finally {
     deleting.value = false
@@ -556,7 +618,6 @@ onMounted(async () => {
   await Promise.all([loadTableInfo(), loadTableData()])
 })
 </script>
-
 <style scoped>
 .v-data-table {
   border-radius: 8px;

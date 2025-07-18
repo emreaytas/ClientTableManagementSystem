@@ -134,14 +134,14 @@ export interface RegisterResponse {
 // Veri ekleme isteği - Column name bazlı
 export interface AddTableDataRequest {
   tableId: number
-  columnValues: Record<string, string> // Column name → value
+  columnValues: Record<string, string> // Column NAME → value (string)
 }
 
-// Veri güncelleme isteği - Column name bazlı
+// Veri güncelleme isteği - Column NAME bazlı (Backend'in beklediği format)
 export interface UpdateTableDataRequest {
   tableId: number
   rowId: number
-  columnValues: Record<string, string> // Column name → value
+  columnValues: Record<string, string> // Column NAME → value (string)
 }
 
 // Dashboard istatistikleri
@@ -353,90 +353,55 @@ class ApiService {
   // ========== TABLE DATA OPERATIONS - Doğru Backend DTO Format ==========
 
   // ========== TABLE DATA OPERATIONS - Detaylı Debug ile ==========
-
   async addTableData(data: AddTableDataRequest): Promise<void> {
     try {
-      console.log('=== ADD TABLE DATA DEBUG (Swagger Format Test) ===')
-      console.log('1. Input data:', data)
-      console.log('2. TableId:', data.tableId)
-      console.log('3. ColumnValues:', data.columnValues)
-      console.log('4. Column Names:', Object.keys(data.columnValues))
-      console.log('5. Column Values:', Object.values(data.columnValues))
+      console.log('🔵 === ADD TABLE DATA DEBUG (Swagger Format) ===')
+      console.log('🔵 1. Input data:', data)
+      console.log('🔵 2. TableId:', data.tableId)
+      console.log('🔵 3. ColumnValues:', data.columnValues)
 
-      // İlk önce backend'in örneğindeki formatla deneyelim
-      const fullFormatBody = {
+      // Swagger'da çalışan EXACT format
+      const requestBody = {
         tableId: data.tableId,
         columnValues: data.columnValues,
       }
 
-      console.log('6. Trying full format first:', JSON.stringify(fullFormatBody, null, 2))
-      console.log('7. Request URL:', `/Tables/${data.tableId}/data`)
+      console.log('🔵 4. Request body (EXACT Swagger format):')
+      console.log(JSON.stringify(requestBody, null, 2))
+      console.log('🔵 5. Request URL:', `/Tables/${data.tableId}/data`)
 
-      try {
-        // Backend'in verdiği örnek format ile dene
-        const response = await apiClient.post(`/Tables/${data.tableId}/data`, fullFormatBody)
-        console.log('8. Success with full format:', response.data)
-        console.log('=== ADD TABLE DATA SUCCESS (Full Format) ===')
-        return
-      } catch (fullFormatError: any) {
-        console.log(
-          '9. Full format failed, trying Dictionary only:',
-          fullFormatError.response?.status,
-        )
-        console.log('10. Full format error:', fullFormatError.response?.data)
+      // Postman/Swagger'da çalışan format ile gönder
+      const response = await apiClient.post(`/Tables/${data.tableId}/data`, requestBody)
 
-        // Eğer full format çalışmazsa, sadece columnValues dene (PUT gibi)
-        const dictOnlyBody = data.columnValues
-        console.log('11. Trying Dictionary only format:', JSON.stringify(dictOnlyBody, null, 2))
-
-        try {
-          const response = await apiClient.post(`/Tables/${data.tableId}/data`, dictOnlyBody)
-          console.log('12. Success with Dictionary only:', response.data)
-          console.log('=== ADD TABLE DATA SUCCESS (Dictionary Only) ===')
-          return
-        } catch (dictError: any) {
-          console.log('13. Dictionary only also failed:', dictError.response?.data)
-          throw dictError // En son hatayı fırlat
-        }
-      }
+      console.log('🟢 6. SUCCESS - Response:', response.data)
+      console.log('🟢 === ADD TABLE DATA SUCCESS ===')
     } catch (error: any) {
-      console.log('=== ADD TABLE DATA ERROR (Both Formats Failed) ===')
-      console.log('14. Final error object:', error)
-      console.log('15. Error response data:', error.response?.data)
-      console.log('16. Error response status:', error.response?.status)
-      console.log('17. Error config URL:', error.config?.url)
-      console.log('18. Error config data:', error.config?.data)
+      console.log('🔴 === ADD TABLE DATA ERROR ===')
+      console.log('🔴 Error Status:', error.response?.status)
+      console.log('🔴 Error Data:', error.response?.data)
+      console.log('🔴 Request Data:', error.config?.data)
+      console.log('🔴 === ADD TABLE DATA ERROR END ===')
 
-      // Backend'den gelen gerçek hata mesajını kontrol et
-      if (error.response?.data) {
-        console.log('19. Backend error details:', JSON.stringify(error.response.data, null, 2))
-      }
-
-      console.log('=== ADD TABLE DATA ERROR END ===')
-
-      console.error('Error adding table data (swagger format test):', error)
+      // Backend loglarında daha detaylı hata olabilir
+      console.error('🔴 Full error object:', error)
       throw this.extractError(error)
     }
   }
 
-  // TableDataController güncelleme endpoint'i henüz tam implementasyon yok
-  // TablesController'ı kullanıyoruz: PUT /Tables/{id}/data/{rowIdentifier}
   async updateTableData(data: UpdateTableDataRequest): Promise<void> {
     try {
-      console.log('=== UPDATE TABLE DATA DEBUG ===')
+      console.log('=== UPDATE TABLE DATA DEBUG (Column Name Format) ===')
       console.log('1. Input data:', data)
       console.log('2. TableId:', data.tableId)
       console.log('3. RowId:', data.rowId)
-      console.log('4. ColumnValues:', data.columnValues)
+      console.log('4. ColumnValues (by column name):', data.columnValues)
 
-      // Backend sadece Dictionary<string, string> bekliyor (columnValues)
-      // Request body'de tableId veya rowId göndermiyoruz, URL'de var
-      const requestBody = data.columnValues // Sadece column values
+      // Backend sadece columnValues bekliyor (column name → string value)
+      const requestBody = data.columnValues
 
       console.log('5. Request body (only columnValues):', requestBody)
       console.log('6. Request URL:', `/Tables/${data.tableId}/data/${data.rowId}`)
 
-      // TablesController endpoint: PUT /Tables/{tableId}/data/{rowId}
       const response = await apiClient.put(
         `/Tables/${data.tableId}/data/${data.rowId}`,
         requestBody,
@@ -574,6 +539,58 @@ class ApiService {
       default:
         return 'Bilinmiyor'
     }
+  }
+
+  getColumnNameById(columnId: number, columns: TableColumn[]): string | null {
+    const column = columns.find((col) => col.id === columnId)
+    return column ? column.columnName : null
+  }
+
+  // Column Name'i Column ID'ye çevirme helper metodu
+  getColumnIdByName(columnName: string, columns: TableColumn[]): number | null {
+    const column = columns.find((col) => col.columnName === columnName)
+    return column ? column.id : null
+  }
+  convertFormDataToBackendFormat(
+    formData: Record<number, any>,
+    columns: TableColumn[],
+  ): Record<string, string> {
+    console.log('=== CONVERT FORM DATA TO BACKEND FORMAT ===')
+    console.log('1. Input form data:', formData)
+    console.log('2. Available columns:', columns)
+
+    const columnValues: Record<string, string> = {}
+
+    columns.forEach((column) => {
+      const value = formData[column.id]
+      console.log(`3. Processing column ${column.id} (${column.columnName}): ${value}`)
+
+      if (value !== null && value !== undefined && value !== '') {
+        columnValues[column.columnName] = value.toString()
+        console.log(`4. Added to columnValues: ${column.columnName} = ${value}`)
+      } else {
+        console.log(`5. Skipped empty value for column: ${column.columnName}`)
+      }
+    })
+
+    console.log('6. Final columnValues:', columnValues)
+    console.log('=== CONVERT FORM DATA TO BACKEND FORMAT END ===')
+    return columnValues
+  }
+  convertBackendDataToFormFormat(
+    backendData: Record<string, any>,
+    columns: TableColumn[],
+  ): Record<number, any> {
+    const formData: Record<number, any> = {}
+
+    columns.forEach((column) => {
+      const value = backendData[column.columnName]
+      if (value !== null && value !== undefined) {
+        formData[column.id] = value
+      }
+    })
+
+    return formData
   }
 
   // Data type colors for UI - Backend enum uyumlu
