@@ -52,7 +52,8 @@ export interface TableColumn {
 }
 
 export interface TableRowData {
-  rowIdentifier: number
+  rowIdentifier: number // Display için (tablo satır numarası)
+  rowId: number // Backend operations için (gerçek database row ID) - EKLENEN
   values: Record<string, any>
 }
 
@@ -329,27 +330,44 @@ class ApiService {
   ): TableRowData[] {
     if (!backendData || backendData.length === 0) return []
 
+    console.log('🔵 === TRANSFORM DEBUG ===')
+    console.log('🔵 1. Backend data sample:', backendData[0])
+
     return backendData.map((row, index) => {
       const values: Record<string, any> = {}
 
-      // Backend'den gelen veriyi column name ile map et
+      // Column mapping
       columns.forEach((column) => {
-        // Column name ile değeri bul
         const columnName = column.columnName
         const columnValue = row[columnName]
-
-        // Hem column ID hem de column name ile erişilebilir yap
         values[column.id] = columnValue || null
         values[`col_${column.id}`] = columnValue || null
       })
 
+      // Row ID detection - try multiple field names
+      const possibleIdFields = ['Id', 'id', 'RowId', 'rowId', 'ID', 'Row_Id', 'row_id']
+      let actualRowId = null
+
+      for (const field of possibleIdFields) {
+        if (row[field] !== undefined && row[field] !== null) {
+          actualRowId = row[field]
+          console.log(`🔵 Found rowId in field '${field}':`, actualRowId)
+          break
+        }
+      }
+
+      if (!actualRowId) {
+        console.log('🔵 No rowId found, using index:', index + 1)
+        actualRowId = index + 1
+      }
+
       return {
-        rowIdentifier: row['Id'] || row['id'] || row['RowId'] || index + 1, // Backend'den gelen ID varsa kullan
+        rowIdentifier: actualRowId,
+        rowId: actualRowId, // ← Bu çok önemli
         values: values,
       }
     })
   }
-
   // ========== TABLE DATA OPERATIONS - Doğru Backend DTO Format ==========
 
   // ========== TABLE DATA OPERATIONS - Detaylı Debug ile ==========
@@ -387,36 +405,45 @@ class ApiService {
       throw this.extractError(error)
     }
   }
-
   async updateTableData(data: UpdateTableDataRequest): Promise<void> {
     try {
-      console.log('=== UPDATE TABLE DATA DEBUG (Column Name Format) ===')
-      console.log('1. Input data:', data)
-      console.log('2. TableId:', data.tableId)
-      console.log('3. RowId:', data.rowId)
-      console.log('4. ColumnValues (by column name):', data.columnValues)
+      console.log('🟡 === UPDATE TABLE DATA DEBUG (FINAL FIX) ===')
+      console.log('🟡 1. Input data:', data)
+      console.log('🟡 2. TableId (URL param):', data.tableId)
+      console.log('🟡 3. RowId (URL param):', data.rowId)
+      console.log('🟡 4. ColumnValues (request body):', data.columnValues)
 
-      // Backend sadece columnValues bekliyor (column name → string value)
-      const requestBody = data.columnValues
+      // Backend sadece Dictionary<string, string> bekliyor
+      // Hiçbir wrapper object yok, sadece column name -> value mapping
 
-      console.log('5. Request body (only columnValues):', requestBody)
-      console.log('6. Request URL:', `/Tables/${data.tableId}/data/${data.rowId}`)
+      // String conversion - tüm değerlerin string olduğundan emin ol
+      const pureColumnValues: Record<string, string> = {}
 
+      for (const [key, value] of Object.entries(data.columnValues)) {
+        pureColumnValues[key] = value?.toString() || ''
+      }
+
+      console.log('🟡 5. Pure columnValues (no wrapper):', pureColumnValues)
+      console.log('🟡 6. JSON that will be sent:', JSON.stringify(pureColumnValues, null, 2))
+      console.log('🟡 7. URL:', `/Tables/${data.tableId}/data/${data.rowId}`)
+      console.log('🟡 8. Method: PUT')
+
+      // DİKKAT: Sadece pureColumnValues gönder, başka hiçbir şey
       const response = await apiClient.put(
         `/Tables/${data.tableId}/data/${data.rowId}`,
-        requestBody,
+        pureColumnValues, // ← Bu JSON'da tableId, rowId olmamalı
       )
 
-      console.log('7. Success response:', response.data)
-      console.log('=== UPDATE TABLE DATA SUCCESS ===')
+      console.log('🟢 9. Success response:', response.data)
+      console.log('🟢 === UPDATE TABLE DATA SUCCESS ===')
     } catch (error: any) {
-      console.log('=== UPDATE TABLE DATA ERROR ===')
-      console.log('8. Error object:', error)
-      console.log('9. Error response data:', error.response?.data)
-      console.log('10. Error response status:', error.response?.status)
-      console.log('=== UPDATE TABLE DATA ERROR END ===')
+      console.log('🔴 === UPDATE TABLE DATA ERROR ===')
+      console.log('🔴 10. Full error:', error)
+      console.log('🔴 11. Error response:', error.response?.data)
+      console.log('🔴 12. Request that was sent:', error.config?.data)
+      console.log('🔴 13. Request URL:', error.config?.url)
+      console.log('🔴 === ERROR END ===')
 
-      console.error('Error updating table data:', error)
       throw this.extractError(error)
     }
   }

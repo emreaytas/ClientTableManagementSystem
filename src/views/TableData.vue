@@ -466,10 +466,10 @@ const openEditDialog = (item: TableRowData) => {
   editingItem.value = item
   formData.value = { ...item.values }
 
-  console.log('🟡 === OPEN EDIT DIALOG ===')
+  console.log('🟡 === OPEN EDIT DIALOG (FIXED) ===')
   console.log('🟡 1. Edit item:', item)
-  console.log('🟡 2. Row ID (for update):', item.rowId)
-  console.log('🟡 3. RowIdentifier (for delete):', item.rowIdentifier)
+  console.log('🟡 2. Row ID (for backend update):', item.rowId) // rowId kullan
+  console.log('🟡 3. RowIdentifier (for display):', item.rowIdentifier)
   console.log('🟡 4. Form data:', formData.value)
 
   // Convert datetime values for form input
@@ -512,61 +512,56 @@ const saveData = async () => {
   saving.value = true
   try {
     console.log('🟡 === SAVE DATA DEBUG ===')
-    console.log('🟡 1. Form data (column ID based):', formData.value)
-    console.log('🟡 2. Available columns:', tableData.value.columns)
+    console.log('🟡 Form data:', formData.value)
+    console.log('🟡 Editing item:', editingItem.value)
 
-    // Manual conversion - debug her adımı + tarih formatı düzeltme
+    // Column values conversion
     const columnValues: Record<string, string> = {}
 
     tableData.value.columns.forEach((column) => {
       const value = formData.value[column.id]
-      console.log(
-        `🟡 3. Processing column ${column.id} (${column.columnName}): "${value}" (dataType: ${column.dataType})`,
-      )
 
       if (value !== null && value !== undefined && value !== '') {
         let processedValue = value.toString()
 
-        // DATETIME (dataType 4) formatını düzelt
-        if (column.dataType === 4) {
-          // Frontend'den gelen format: "2025-07-18T14:50"
-          // Backend'in beklediği format: "2025-07-18T14:50:00"
-          if (processedValue.length === 16) {
-            // "2025-07-18T14:50" formatı
-            processedValue = processedValue + ':00'
-            console.log(`🟡 4. Fixed datetime format: "${processedValue}"`)
-          }
+        // DateTime format fix
+        if (column.dataType === 4 && processedValue.length === 16) {
+          processedValue = processedValue + ':00'
         }
 
         columnValues[column.columnName] = processedValue
-        console.log(`🟡 5. Added: ${column.columnName} = "${processedValue}"`)
-      } else {
-        console.log(`🟡 6. Skipped empty value for: ${column.columnName}`)
+        console.log(`🟡 Added: ${column.columnName} = "${processedValue}"`)
       }
     })
 
-    console.log('🟡 7. Final columnValues:', columnValues)
-    console.log('🟡 8. Column count:', Object.keys(columnValues).length)
+    console.log('🟡 Final columnValues:', columnValues)
 
     if (editingItem.value) {
-      // Update existing data - Row ID kullan
+      // UPDATE
+      const rowId = editingItem.value.rowId || editingItem.value.rowIdentifier
+
+      if (!rowId) {
+        throw new Error('Row ID bulunamadı')
+      }
+
+      console.log('🟡 Updating with rowId:', rowId)
+
       const updateRequest: UpdateTableDataRequest = {
         tableId: tableId.value,
-        rowId: editingItem.value.rowId, // Row ID kullan (RowIdentifier değil)
+        rowId: rowId,
         columnValues,
       }
 
-      console.log('🟡 9. Update request (using Row ID):', updateRequest)
+      console.log('🟡 Update request:', updateRequest)
       await apiService.updateTableData(updateRequest)
       toast.success('Kayıt başarıyla güncellendi')
     } else {
-      // Add new data - EXACT Swagger format
+      // ADD
       const addRequest: AddTableDataRequest = {
         tableId: tableId.value,
         columnValues,
       }
 
-      console.log('🟡 9. Add request (EXACT Swagger format):', addRequest)
       await apiService.addTableData(addRequest)
       toast.success('Kayıt başarıyla eklendi')
     }
@@ -574,7 +569,7 @@ const saveData = async () => {
     closeDialog()
     await loadTableData()
   } catch (error: any) {
-    console.error('🔴 Save data error:', error)
+    console.error('🔴 Save error:', error)
     toast.error(error.message || 'Kayıt kaydedilirken hata oluştu')
   } finally {
     saving.value = false
@@ -589,16 +584,16 @@ const deleteData = async () => {
 
   deleting.value = true
   try {
-    console.log('🔴 === DELETE DATA DEBUG ===')
+    console.log('🔴 === DELETE DATA DEBUG (FIXED) ===')
     console.log('🔴 1. Delete item full object:', deleteItem.value)
     console.log('🔴 2. Table ID:', tableId.value)
-    console.log('🔴 3. Row ID (rowIdentifier):', deleteItem.value.rowIdentifier)
-    console.log('🔴 4. Item values:', deleteItem.value.values)
+    console.log('🔴 3. Row ID for delete (rowId):', deleteItem.value.rowId) // rowId kullan
+    console.log('🔴 4. RowIdentifier (display only):', deleteItem.value.rowIdentifier)
 
-    // RowIdentifier değerini kontrol et - backend'den gelen RowIdentifier kullanılmalı
-    const rowId = deleteItem.value.rowIdentifier
+    // Delete işlemi için de rowId kullan
+    const rowId = deleteItem.value.rowId || deleteItem.value.rowIdentifier
     if (!rowId) {
-      console.error('🔴 ERROR: RowIdentifier is missing or invalid:', rowId)
+      console.error('🔴 ERROR: Row ID is missing or invalid:', rowId)
       toast.error("Kayıt ID'si bulunamadı")
       return
     }
@@ -609,14 +604,9 @@ const deleteData = async () => {
     console.log('🟢 6. Delete successful - refreshing table data...')
     toast.success('Kayıt başarıyla silindi')
 
-    // Dialog'u kapat
     deleteDialog.value = false
     deleteItem.value = null
-
-    // Tabloyu yeniden yükle
-    console.log('🟢 7. Reloading table data...')
     await loadTableData()
-    console.log('🟢 8. Table data reloaded successfully!')
   } catch (error: any) {
     console.error('🔴 Delete data error:', error)
     toast.error(error.message || 'Kayıt silinirken hata oluştu')
