@@ -95,6 +95,49 @@
                 @input="checkForChanges"
               ></v-textarea>
 
+              <!-- 🔥 YENİ: Force Update Checkbox -->
+              <v-checkbox
+                v-if="isEdit && hasChanges"
+                v-model="forceUpdateEnabled"
+                color="warning"
+                class="mb-3"
+                @update:model-value="checkForChanges"
+              >
+                <template v-slot:label>
+                  <div class="d-flex align-center">
+                    <v-icon color="warning" class="mr-2">mdi-alert</v-icon>
+                    <span class="text-body-2">
+                      <strong>Zorla Güncelleme</strong>
+                    </span>
+                  </div>
+                </template>
+              </v-checkbox>
+
+              <!-- Force Update Warning -->
+              <v-alert
+                v-if="isEdit && hasChanges && forceUpdateEnabled"
+                type="warning"
+                variant="tonal"
+                class="mb-3"
+                icon="mdi-alert-triangle"
+              >
+                <v-alert-title>⚠️ Veri Kaybı Riski!</v-alert-title>
+                <div class="mt-2">
+                  <p class="text-body-2">
+                    <strong>Bu seçenek etkinleştirildiğinde:</strong>
+                  </p>
+                  <ul class="mt-2 ml-4 text-body-2">
+                    <li>Veri doğrulama kontrolleri atlanacak</li>
+                    <li>Kolon silme işlemleri doğrudan yapılacak</li>
+                    <li>Veri tipi değişiklikleri zorla uygulanacak</li>
+                    <li><strong>VERİ KAYBI OLABİLİR!</strong></li>
+                  </ul>
+                  <p class="mt-2 text-body-2">
+                    <strong>🛡️ Öneri:</strong> Devam etmeden önce tablonuzun yedeğini alın.
+                  </p>
+                </div>
+              </v-alert>
+
               <v-alert type="info" variant="tonal" class="mb-3">
                 {{
                   isEdit
@@ -345,7 +388,7 @@
                 Değişiklikleri Geri Al
               </v-btn>
               <v-btn
-                :color="isEdit && hasChanges ? 'success' : 'primary'"
+                :color="getUpdateButtonColor()"
                 type="submit"
                 :loading="loading"
                 :disabled="
@@ -354,11 +397,9 @@
                   !isFormValid ||
                   (isEdit && !hasChanges)
                 "
-                :prepend-icon="
-                  isEdit ? (hasChanges ? 'mdi-content-save' : 'mdi-check') : 'mdi-plus'
-                "
+                :prepend-icon="getUpdateButtonIcon()"
               >
-                {{ isEdit ? (hasChanges ? 'Güncelle' : 'Güncel') : 'Oluştur' }}
+                {{ getUpdateButtonText() }}
               </v-btn>
             </div>
           </div>
@@ -488,12 +529,15 @@ const previewDialog = ref(false)
 const tableForm = ref()
 const hasChanges = ref(false)
 
+// 🔥 YENİ: Force Update Checkbox
+const forceUpdateEnabled = ref(false)
+
 // Table data structure matching API expectations
 const tableData = ref({
   tableName: '',
   description: '',
   columns: [] as Array<{
-    id?: number | null // ✅ Backend'den gelen ID
+    id?: number | null
     columnName: string
     dataType: ColumnDataType
     isRequired: boolean
@@ -526,6 +570,25 @@ const isFormValid = computed(() => {
     )
   )
 })
+
+// 🔥 YENİ: Button Appearance Helper Functions
+const getUpdateButtonColor = () => {
+  if (!isEdit.value) return 'primary'
+  if (!hasChanges.value) return 'primary'
+  return forceUpdateEnabled.value ? 'error' : 'success'
+}
+
+const getUpdateButtonIcon = () => {
+  if (!isEdit.value) return 'mdi-plus'
+  if (!hasChanges.value) return 'mdi-check'
+  return forceUpdateEnabled.value ? 'mdi-alert' : 'mdi-content-save'
+}
+
+const getUpdateButtonText = () => {
+  if (!isEdit.value) return 'Oluştur'
+  if (!hasChanges.value) return 'Güncel'
+  return forceUpdateEnabled.value ? 'Zorla Güncelle' : 'Güncelle'
+}
 
 // Column Types based on API enum
 const columnTypes = [
@@ -598,7 +661,7 @@ const loadTable = async () => {
       columns: table.columns
         .sort((a, b) => a.displayOrder - b.displayOrder)
         .map((col, index) => ({
-          id: col.id, // ✅ ID'yi muhafaza et
+          id: col.id,
           columnName: col.columnName,
           dataType: col.dataType as ColumnDataType,
           isRequired: col.isRequired,
@@ -611,6 +674,7 @@ const loadTable = async () => {
     tableData.value = JSON.parse(JSON.stringify(loadedData))
     originalData.value = JSON.parse(JSON.stringify(loadedData))
     hasChanges.value = false
+    forceUpdateEnabled.value = false // Reset force update
   } catch (error: any) {
     console.error('❌ Table loading error:', error)
     toast.error(
@@ -621,7 +685,6 @@ const loadTable = async () => {
     loading.value = false
   }
 }
-
 // 🔥 SAVE TABLE METODUNU DÜZELT
 const saveTable = async () => {
   const { valid } = await tableForm.value.validate()
@@ -642,6 +705,24 @@ const saveTable = async () => {
   if (duplicates.length > 0) {
     toast.error('Kolon adları benzersiz olmalıdır')
     return
+  }
+
+  // 🔥 Force Update Confirmation
+  if (isEdit.value && forceUpdateEnabled.value) {
+    const confirmed = confirm(
+      '⚠️ ZORLA GÜNCELLEME UYARISI\n\n' +
+        'Bu seçenek etkinleştirildiğinde:\n' +
+        '• Veri doğrulama kontrolleri atlanacak\n' +
+        '• Kolon silme işlemleri doğrudan yapılacak\n' +
+        '• Veri tipi değişiklikleri zorla uygulanacak\n' +
+        '• VERİ KAYBI OLABİLİR!\n\n' +
+        'Devam etmek istediğinizden emin misiniz?',
+    )
+
+    if (!confirmed) {
+      toast.info('İşlem iptal edildi')
+      return
+    }
   }
 
   loading.value = true
@@ -669,28 +750,41 @@ const saveTable = async () => {
     }
   } catch (error: any) {
     console.error('❌ Table save error:', error)
-    await handleTableUpdateError(error)
+    // 🔥 Normal hata yönetimi - Force Update aktifken hata göstermek
+    if (forceUpdateEnabled.value) {
+      toast.error(
+        'Zorla güncelleme bile başarısız oldu: ' + (error.response?.data?.message || error.message),
+      )
+    } else {
+      toast.error('Güncelleme başarısız: ' + (error.response?.data?.message || error.message))
+    }
   } finally {
     loading.value = false
   }
 }
 
-// 🔥 Tablo güncelleme işlemini ayrı fonksiyon yaptık
+// 🔥 Tablo güncelleme işlemini ayrı fonksiyon
 const performTableUpdate = async () => {
-  const updateData = buildUpdateData()
+  const updateData = buildUpdateData(forceUpdateEnabled.value) // Force update checkbox'ına göre
 
   console.log('🚀 Sending table update:', updateData)
+  console.log('🔥 Force update enabled:', forceUpdateEnabled.value)
 
   const response = await apiService.updateTable(tableId.value, updateData)
 
   // ✅ Başarılı güncelleme
-  toast.success('Tablo başarıyla güncellendi!')
+  if (forceUpdateEnabled.value) {
+    toast.success('Tablo zorla güncellendi! Bazı veriler kaybolmuş olabilir.')
+  } else {
+    toast.success('Tablo başarıyla güncellendi!')
+  }
 
   // Güvenli değişiklikleri kullanıcıya göster
   handleSuccessfulUpdate(response)
 
   await loadTable()
   hasChanges.value = false
+  forceUpdateEnabled.value = false // Reset after successful update
 }
 
 // 🔥 Update data builder
@@ -706,7 +800,7 @@ const buildUpdateData = (forceUpdate = false) => {
         isRequired: col.isRequired,
         displayOrder: index + 1,
         defaultValue: col.defaultValue || '',
-        forceUpdate: forceUpdate,
+        forceUpdate: forceUpdate, // 🔥 Checkbox değerine göre
       }
 
       // ✅ Eğer kolon ID'si varsa ekle (mevcut kolon)
@@ -748,165 +842,6 @@ const handleSuccessfulUpdate = (response: any) => {
   }
 }
 
-// 🔥 Hata yönetimi
-const handleTableUpdateError = async (error: any) => {
-  if (error.response?.status === 400) {
-    const errorData = error.response.data
-
-    if (errorData.message?.includes('Zorla güncelleme gerekli') || errorData.requiresForceUpdate) {
-      // 🔥 Force update gerekiyor
-      await handleForceUpdateRequired(errorData)
-    } else if (errorData.columnIssues || errorData.dataIssues) {
-      // Validasyon hataları
-      handleValidationErrors(errorData)
-    } else {
-      // Genel hata
-      toast.error(errorData.message || 'Tablo güncellenirken hata oluştu')
-    }
-  } else {
-    // Diğer hatalar
-    const errorMessage = extractErrorMessage(error)
-    toast.error(`Tablo güncellenirken hata oluştu: ${errorMessage}`)
-  }
-}
-
-// 🔥 FORCE UPDATE HANDLER - Ana fonksiyon
-const handleForceUpdateRequired = async (errorData: any) => {
-  const issues = extractIssues(errorData)
-
-  const confirmMessage = [
-    '⚠️ Aşağıdaki değişiklikler veri kaybına neden olabilir:',
-    '',
-    ...issues,
-    '',
-    '🔍 Sistem tablonuzun içeriğini kontrol etti.',
-    'Gerçekten veri kaybı olacaksa bu uyarıyı gösteriyoruz.',
-    '',
-    '❓ Bu değişiklikleri yapmak istediğinizden emin misiniz?',
-  ].join('\n')
-
-  if (confirm(confirmMessage)) {
-    await executeForceUpdate()
-  }
-}
-
-// 🔥 Force update'i gerçekleştir
-const executeForceUpdate = async () => {
-  try {
-    loading.value = true
-
-    const forceUpdateData = buildUpdateData(true) // forceUpdate: true
-
-    console.log('🚀 Sending force update:', forceUpdateData)
-
-    const response = await apiService.updateTable(tableId.value, forceUpdateData)
-
-    if (response) {
-      toast.success('Tablo zorla güncellendi!')
-      await loadTable()
-      hasChanges.value = false
-    }
-  } catch (forceError: any) {
-    console.error('❌ Force update failed:', forceError)
-    toast.error(
-      'Zorla güncelleme başarısız: ' + (forceError.response?.data?.message || forceError.message),
-    )
-  } finally {
-    loading.value = false
-  }
-}
-
-// 🔥 Issue'ları çıkar
-const extractIssues = (errorData: any): string[] => {
-  const issues: string[] = []
-
-  // Column issues'ları topla
-  if (errorData.columnIssues) {
-    Object.entries(errorData.columnIssues).forEach(([columnName, columnIssues]) => {
-      if (Array.isArray(columnIssues)) {
-        columnIssues.forEach((issue: string) => {
-          if (!issue.startsWith('✅') && !issue.startsWith('ℹ️')) {
-            issues.push(`${columnName}: ${issue.replace('⚠️ ', '')}`)
-          }
-        })
-      }
-    })
-  }
-
-  if (errorData.forceUpdateReasons && Array.isArray(errorData.forceUpdateReasons)) {
-    issues.push(...errorData.forceUpdateReasons)
-  }
-
-  if (errorData.dataIssues && Array.isArray(errorData.dataIssues)) {
-    issues.push(...errorData.dataIssues)
-  }
-
-  return issues
-}
-
-// 🔥 VALİDASYON HATALARINI KULLANICIYA GÖSTER
-const handleValidationErrors = (errorData: any) => {
-  const safeChanges: string[] = []
-  const warnings: string[] = []
-  const errors: string[] = []
-
-  // Column issues'ları kategorize et
-  if (errorData.columnIssues) {
-    Object.entries(errorData.columnIssues).forEach(([columnName, issues]) => {
-      if (Array.isArray(issues)) {
-        issues.forEach((issue: string) => {
-          if (issue.startsWith('✅')) {
-            safeChanges.push(`${columnName}: ${issue.replace('✅ ', '')}`)
-          } else if (issue.startsWith('ℹ️')) {
-            safeChanges.push(`${columnName}: ${issue.replace('ℹ️ ', '')}`)
-          } else if (issue.startsWith('⚠️')) {
-            warnings.push(`${columnName}: ${issue.replace('⚠️ ', '')}`)
-          } else {
-            errors.push(`${columnName}: ${issue}`)
-          }
-        })
-      }
-    })
-  }
-
-  if (errorData.issues && Array.isArray(errorData.issues)) {
-    errors.push(...errorData.issues)
-  }
-
-  // Mesajları göster
-  if (errors.length > 0) {
-    toast.error('Hata: ' + errors.join(', '), { timeout: 7000 })
-  }
-
-  if (warnings.length > 0) {
-    toast.warning('Uyarı: ' + warnings.join(', '), { timeout: 5000 })
-  }
-
-  if (safeChanges.length > 0) {
-    toast.info('Güvenli değişiklikler mevcut: ' + safeChanges.join(', '), { timeout: 5000 })
-  }
-}
-
-// 🔥 Error message çıkarıcı
-const extractErrorMessage = (error: any): string => {
-  if (error.response?.data?.message) {
-    return error.response.data.message
-  } else if (error.response?.data?.errors) {
-    const errors = error.response.data.errors
-    if (Array.isArray(errors)) {
-      return errors
-        .map((e: any) => Object.values(e))
-        .flat()
-        .join(', ')
-    } else {
-      return Object.values(errors).flat().join(', ')
-    }
-  } else if (error.message) {
-    return error.message
-  }
-  return 'Bilinmeyen hata'
-}
-
 const checkForChanges = () => {
   if (!isEdit.value || !originalData.value) {
     hasChanges.value = false
@@ -922,6 +857,7 @@ const resetChanges = () => {
   if (originalData.value) {
     tableData.value = JSON.parse(JSON.stringify(originalData.value))
     hasChanges.value = false
+    forceUpdateEnabled.value = false // Reset force update
     toast.info('Değişiklikler geri alındı')
   }
 }
@@ -944,22 +880,47 @@ const addColumn = () => {
   })
 }
 
+// 🔥 GELİŞTİRİLMİŞ KOLON SİLME İŞLEMİ
 const removeColumn = (index: number) => {
   const column = tableData.value.columns[index]
-  const columnInfo = column.id
-    ? `mevcut kolon "${column.columnName}"`
-    : `yeni kolon "${column.columnName}"`
+  const isExistingColumn = !!column.id && column.id > 0
 
-  if (confirm(`${columnInfo} kolonunu silmek istediğinizden emin misiniz?`)) {
+  let confirmMessage = ''
+
+  if (isExistingColumn) {
+    // Mevcut kolon - veri kaybı uyarısı
+    confirmMessage = [
+      `⚠️ "${column.columnName}" kolonunu silmek istediğinizden emin misiniz?`,
+      '',
+      '🚨 DİKKAT: Bu işlem GERİ ALINAMAZ!',
+      '',
+      '📊 Bu kolon silindiğinde:',
+      '• Kolondaki TÜM veriler kaybolacak',
+      '• Bu işlem geri alınamayacak',
+      '• Tablo yapısı değişecek',
+      '',
+      '💡 Öneriler:',
+      '• Devam etmeden önce veri yedeği alın',
+      '• Kolonun gerçekten gereksiz olduğundan emin olun',
+      '• Force Update checkboxını işaretlemeyi unutmayın',
+      '',
+      '❓ Yine de silmek istiyorsanız "Tamam" butonuna basın.',
+    ].join('\n')
+  } else {
+    // Yeni kolon - güvenli silme
+    confirmMessage = `"${column.columnName}" adlı yeni kolonu silmek istediğinizden emin misiniz?\n\n(Bu kolon henüz kaydedilmediği için veri kaybı olmayacak)`
+  }
+
+  if (confirm(confirmMessage)) {
     console.log(`🗑️ Removing column at index ${index}:`, {
       columnName: column.columnName,
       columnId: column.id,
-      isExisting: !!column.id,
+      isExisting: isExistingColumn,
     })
 
     tableData.value.columns.splice(index, 1)
 
-    // Update display orders
+    // Display order'ları güncelle
     tableData.value.columns.forEach((col, idx) => {
       col.displayOrder = idx + 1
     })
@@ -968,6 +929,14 @@ const removeColumn = (index: number) => {
       `✅ Column removed. Remaining columns:`,
       tableData.value.columns.map((c) => ({ name: c.columnName, id: c.id })),
     )
+
+    if (isExistingColumn) {
+      toast.warning(
+        `"${column.columnName}" kolonu işaretlendi. Güncelleme yapmak için "Force Update" checkbox'ını işaretlemeyi unutmayın!`,
+      )
+    } else {
+      toast.info(`"${column.columnName}" kolonu silindi.`)
+    }
 
     checkForChanges()
   }
@@ -991,13 +960,13 @@ const goBack = () => {
 const getColumnTypeLabel = (dataType: ColumnDataType): string => {
   switch (dataType) {
     case 1:
-      return 'VARCHAR' // case ColumnDataType.VARCHAR
+      return 'VARCHAR'
     case 2:
-      return 'INT' // case ColumnDataType.INT
+      return 'INT'
     case 3:
-      return 'DECIMAL' // case ColumnDataType.DECIMAL
+      return 'DECIMAL'
     case 4:
-      return 'DATETIME' // case ColumnDataType.DATETIME
+      return 'DATETIME'
     default:
       return 'UNKNOWN'
   }
@@ -1006,13 +975,13 @@ const getColumnTypeLabel = (dataType: ColumnDataType): string => {
 const getColumnTypeColor = (dataType: ColumnDataType): string => {
   switch (dataType) {
     case 1:
-      return 'blue' // VARCHAR
+      return 'blue'
     case 2:
-      return 'green' // INT
+      return 'green'
     case 3:
-      return 'orange' // DECIMAL
+      return 'orange'
     case 4:
-      return 'purple' // DATETIME
+      return 'purple'
     default:
       return 'grey'
   }
@@ -1021,13 +990,13 @@ const getColumnTypeColor = (dataType: ColumnDataType): string => {
 const getSampleData = (column: any): string => {
   switch (column.dataType) {
     case 1:
-      return column.defaultValue || 'Örnek metin' // VARCHAR
+      return column.defaultValue || 'Örnek metin'
     case 2:
-      return column.defaultValue || '123' // INT
+      return column.defaultValue || '123'
     case 3:
-      return column.defaultValue || '123.45' // DECIMAL
+      return column.defaultValue || '123.45'
     case 4:
-      return column.defaultValue || new Date().toLocaleString('tr-TR') // DATETIME
+      return column.defaultValue || new Date().toLocaleString('tr-TR')
     default:
       return 'Veri'
   }
@@ -1035,13 +1004,13 @@ const getSampleData = (column: any): string => {
 
 const getDefaultValueHint = (dataType: number): string => {
   switch (dataType) {
-    case 1: // VARCHAR
+    case 1:
       return 'Örnek: "Varsayılan metin"'
-    case 2: // INT
+    case 2:
       return 'Örnek: 0, 100, -50'
-    case 3: // DECIMAL
+    case 3:
       return 'Örnek: 0.00, 99.99, -10.5'
-    case 4: // DATETIME
+    case 4:
       return 'Örnek: "2024-01-01" veya GETDATE()'
     default:
       return ''
@@ -1074,6 +1043,10 @@ onMounted(() => {
 
 .text-orange {
   color: rgb(255, 152, 0);
+}
+
+.v-dialog .v-card {
+  border-radius: 12px;
 }
 
 /* Responsive adjustments */
