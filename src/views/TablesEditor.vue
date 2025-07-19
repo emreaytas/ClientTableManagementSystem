@@ -20,6 +20,45 @@
       </v-col>
     </v-row>
 
+    <!-- 🔥 YENİ: Akıllı Bilgilendirme Alert'leri -->
+    <v-row v-if="isEdit">
+      <v-col cols="12">
+        <!-- Genel bilgilendirme -->
+        <v-alert type="info" variant="tonal" class="mb-4" icon="mdi-information">
+          <v-alert-title>💡 Akıllı Tablo Güncelleme Sistemi</v-alert-title>
+          <div class="mt-2">
+            <p>
+              <strong
+                >Sistem tablonuzun içeriğini analiz ederek güvenli güncellemeler yapar:</strong
+              >
+            </p>
+            <ul class="mt-2 ml-4">
+              <li>
+                📊 <strong>Boş kolonlar:</strong> Herhangi bir veri tipi değişikliğine izin verilir
+              </li>
+              <li>🔢 <strong>INT → DECIMAL:</strong> Her zaman güvenli (veri kaybı olmaz)</li>
+              <li>📝 <strong>Sayısal → TEXT:</strong> Her zaman güvenli (veri kaybı olmaz)</li>
+              <li>⚠️ <strong>TEXT → Sayısal:</strong> Geçersiz veriler kontrol edilir</li>
+              <li>🗑️ <strong>Kolon silme:</strong> Sadece veri içeren kolonlarda uyarı verir</li>
+            </ul>
+          </div>
+        </v-alert>
+
+        <!-- Değişiklik bilgisi -->
+        <v-alert v-if="hasChanges" type="warning" variant="tonal" class="mb-4" icon="mdi-pencil">
+          <v-alert-title>📝 Değişiklikler Tespit Edildi</v-alert-title>
+          <div class="mt-2">
+            <p>Güncelleme yapmadan önce sistem:</p>
+            <ul class="mt-2 ml-4">
+              <li>🔍 Tablonuzun veri içeriğini kontrol edecek</li>
+              <li>⚡ Güvenli değişiklikleri otomatik onaylayacak</li>
+              <li>⚠️ Risk olan durumları size soracak</li>
+            </ul>
+          </div>
+        </v-alert>
+      </v-col>
+    </v-row>
+
     <!-- Loading State for Edit Mode -->
     <div v-if="loading && isEdit" class="text-center py-8">
       <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
@@ -110,6 +149,38 @@
               </v-btn>
             </v-card-title>
             <v-card-text>
+              <!-- 🔥 YENİ: Veri Tipi Dönüşüm Rehberi -->
+              <v-expansion-panels v-if="isEdit" class="mb-4">
+                <v-expansion-panel>
+                  <v-expansion-panel-title>
+                    <v-icon class="mr-2">mdi-help-circle</v-icon>
+                    Veri Tipi Dönüşüm Rehberi
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <v-row>
+                      <v-col cols="12" md="6">
+                        <h4 class="text-green mb-2">✅ Güvenli Dönüşümler (Veri Kaybı Yok)</h4>
+                        <ul class="ml-4">
+                          <li><strong>INT → DECIMAL:</strong> 123 → 123.00</li>
+                          <li><strong>INT → VARCHAR:</strong> 123 → "123"</li>
+                          <li><strong>DECIMAL → VARCHAR:</strong> 123.45 → "123.45"</li>
+                          <li><strong>DATETIME → VARCHAR:</strong> Tarih → "2024-01-01"</li>
+                        </ul>
+                      </v-col>
+                      <v-col cols="12" md="6">
+                        <h4 class="text-orange mb-2">⚠️ Dikkatli Dönüşümler (Kontrol Edilir)</h4>
+                        <ul class="ml-4">
+                          <li><strong>VARCHAR → INT:</strong> "abc" → 0 (geçersiz)</li>
+                          <li><strong>VARCHAR → DECIMAL:</strong> "xyz" → 0.00 (geçersiz)</li>
+                          <li><strong>DECIMAL → INT:</strong> 123.45 → 123 (ondalık kaybolur)</li>
+                          <li><strong>VARCHAR → DATETIME:</strong> "geçersiz" → NULL</li>
+                        </ul>
+                      </v-col>
+                    </v-row>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
+
               <div v-if="tableData.columns.length === 0" class="text-center py-8">
                 <v-icon size="64" color="grey-lighten-1">mdi-table-column-plus-after</v-icon>
                 <p class="text-h6 text--secondary mt-2">Henüz kolon eklenmedi</p>
@@ -123,24 +194,49 @@
                 <v-row>
                   <v-col
                     v-for="(column, index) in tableData.columns"
-                    :key="index"
+                    :key="column.id || `new-${index}`"
                     cols="12"
                     md="6"
                     lg="4"
                   >
-                    <v-card class="column-card" elevation="1">
-                      <v-card-title class="pb-2 d-flex justify-space-between align-center">
-                        <span class="text-h6">Kolon {{ index + 1 }}</span>
+                    <!-- 🔥 YENİ: Geliştirilmiş Kolon Card'ı -->
+                    <v-card
+                      class="column-card h-100"
+                      :class="{
+                        'border-primary': column.isRequired,
+                        'border-dashed': !column.id,
+                      }"
+                      variant="outlined"
+                    >
+                      <v-card-title class="d-flex align-center justify-space-between pa-3">
+                        <div class="d-flex align-center">
+                          <v-chip
+                            :color="getColumnTypeColor(column.dataType)"
+                            size="small"
+                            class="mr-2"
+                          >
+                            {{ getColumnTypeLabel(column.dataType) }}
+                          </v-chip>
+                          <v-icon v-if="column.isRequired" color="warning" size="small">
+                            mdi-asterisk
+                          </v-icon>
+                          <v-icon v-if="!column.id" color="success" size="small">
+                            mdi-new-box
+                          </v-icon>
+                        </div>
+
                         <v-btn
                           icon="mdi-delete"
+                          variant="text"
                           size="small"
                           color="error"
-                          variant="text"
                           @click="removeColumn(index)"
                           :disabled="loading"
                         ></v-btn>
                       </v-card-title>
-                      <v-card-text>
+
+                      <v-card-text class="pt-0">
+                        <!-- Kolon adı -->
                         <v-text-field
                           v-model="column.columnName"
                           label="Kolon Adı *"
@@ -152,18 +248,35 @@
                           @input="checkForChanges"
                         ></v-text-field>
 
+                        <!-- Veri tipi -->
                         <v-select
                           v-model="column.dataType"
-                          :items="columnTypes"
                           label="Veri Tipi *"
                           variant="outlined"
                           density="compact"
+                          :items="columnTypes"
+                          item-title="title"
+                          item-value="value"
                           :rules="[rules.dataType]"
                           class="mb-2"
                           :disabled="loading"
                           @update:model-value="checkForChanges"
-                        ></v-select>
+                        >
+                          <template #item="{ props, item }">
+                            <v-list-item
+                              v-bind="props"
+                              :prepend-icon="'mdi-circle'"
+                              :prepend-icon-color="item.raw.color"
+                            >
+                              <v-list-item-title>{{ item.raw.title }}</v-list-item-title>
+                              <v-list-item-subtitle>{{
+                                item.raw.description
+                              }}</v-list-item-subtitle>
+                            </v-list-item>
+                          </template>
+                        </v-select>
 
+                        <!-- Varsayılan değer -->
                         <v-text-field
                           v-model="column.defaultValue"
                           label="Varsayılan Değer"
@@ -172,29 +285,23 @@
                           class="mb-2"
                           :disabled="loading"
                           @input="checkForChanges"
+                          :hint="getDefaultValueHint(column.dataType)"
+                          persistent-hint
                         ></v-text-field>
 
+                        <!-- Zorunlu checkbox -->
                         <v-checkbox
                           v-model="column.isRequired"
-                          label="Zorunlu"
+                          label="Zorunlu alan"
                           density="compact"
-                          class="mb-1"
                           :disabled="loading"
-                          @change="checkForChanges"
+                          @update:model-value="checkForChanges"
                         ></v-checkbox>
 
-                        <!-- Column Info Chip -->
-                        <v-chip
-                          :color="getColumnTypeColor(column.dataType)"
-                          variant="tonal"
-                          size="small"
-                          class="mr-2"
-                        >
-                          {{ getColumnTypeLabel(column.dataType) }}
-                        </v-chip>
-                        <v-chip v-if="column.isRequired" color="red" variant="tonal" size="small">
-                          Zorunlu
-                        </v-chip>
+                        <!-- Örnek veri gösterimi -->
+                        <v-alert type="info" variant="tonal" density="compact" class="mt-2">
+                          <small><strong>Örnek:</strong> {{ getSampleData(column) }}</small>
+                        </v-alert>
                       </v-card-text>
                     </v-card>
                   </v-col>
@@ -352,6 +459,7 @@ interface UpdateTableRequest {
   tableName: string
   description: string
   columns: {
+    columnId?: number | null
     columnName: string
     dataType: number
     isRequired: boolean
@@ -385,6 +493,7 @@ const tableData = ref({
   tableName: '',
   description: '',
   columns: [] as Array<{
+    id?: number | null
     columnName: string
     dataType: ColumnDataType
     isRequired: boolean
@@ -420,10 +529,30 @@ const isFormValid = computed(() => {
 
 // Column Types based on API enum
 const columnTypes = [
-  { title: 'Metin (VARCHAR)', value: ColumnDataType.VARCHAR },
-  { title: 'Sayı (INT)', value: ColumnDataType.INT },
-  { title: 'Ondalık (DECIMAL)', value: ColumnDataType.DECIMAL },
-  { title: 'Tarih/Saat (DATETIME)', value: ColumnDataType.DATETIME },
+  {
+    title: 'Metin (VARCHAR)',
+    value: ColumnDataType.VARCHAR,
+    color: 'blue',
+    description: 'Metin veriler için (maksimum 255 karakter)',
+  },
+  {
+    title: 'Sayı (INT)',
+    value: ColumnDataType.INT,
+    color: 'green',
+    description: 'Tam sayılar için (-2,147,483,648 ile 2,147,483,647 arası)',
+  },
+  {
+    title: 'Ondalık (DECIMAL)',
+    value: ColumnDataType.DECIMAL,
+    color: 'orange',
+    description: 'Ondalıklı sayılar için (18 basamak, 2 ondalık basamak)',
+  },
+  {
+    title: 'Tarih/Saat (DATETIME)',
+    value: ColumnDataType.DATETIME,
+    color: 'purple',
+    description: 'Tarih ve saat bilgileri için',
+  },
 ]
 
 // Validation Rules
@@ -469,6 +598,7 @@ const loadTable = async () => {
       columns: table.columns
         .sort((a, b) => a.displayOrder - b.displayOrder)
         .map((col, index) => ({
+          id: col.id,
           columnName: col.columnName,
           dataType: col.dataType as ColumnDataType,
           isRequired: col.isRequired,
@@ -512,6 +642,7 @@ const resetChanges = () => {
 
 const addColumn = () => {
   tableData.value.columns.push({
+    id: null,
     columnName: '',
     dataType: ColumnDataType.VARCHAR,
     isRequired: false,
@@ -539,6 +670,114 @@ const removeColumn = (index: number) => {
 
 const previewTable = () => {
   previewDialog.value = true
+}
+
+// 🔥 FORCE UPDATE GEREKTİĞİNDE KULLANICIYA SOR
+const handleForceUpdateRequired = async (errorData: any, originalUpdateData: any) => {
+  const issues = []
+
+  // Column issues'ları topla
+  if (errorData.columnIssues) {
+    Object.entries(errorData.columnIssues).forEach(([columnName, columnIssues]) => {
+      if (Array.isArray(columnIssues)) {
+        columnIssues.forEach((issue: string) => {
+          if (!issue.startsWith('✅') && !issue.startsWith('ℹ️')) {
+            issues.push(`${columnName}: ${issue}`)
+          }
+        })
+      }
+    })
+  }
+
+  if (errorData.dataIssues && Array.isArray(errorData.dataIssues)) {
+    issues.push(...errorData.dataIssues)
+  }
+
+  const confirmMessage = [
+    '⚠️ Aşağıdaki değişiklikler veri kaybına neden olabilir:',
+    '',
+    ...issues,
+    '',
+    '🔍 Ancak sistem tablonuzun içeriğini kontrol etti.',
+    'Gerçekten veri kaybı olacaksa bu uyarıyı gösteriyoruz.',
+    '',
+    '❓ Bu değişiklikleri yapmak istediğinizden emin misiniz?',
+  ].join('\n')
+
+  if (confirm(confirmMessage)) {
+    try {
+      loading.value = true
+
+      // Force update ile tekrar dene
+      const forceUpdateData = {
+        ...originalUpdateData,
+        columns: originalUpdateData.columns.map((col: any) => ({
+          ...col,
+          forceUpdate: true,
+        })),
+      }
+
+      console.log('🚀 Sending force update:', forceUpdateData)
+
+      const response = await apiService.updateTable(tableId.value, forceUpdateData)
+
+      if (response) {
+        toast.success('Tablo zorla güncellendi!')
+        await loadTable()
+        hasChanges.value = false
+      }
+    } catch (forceError: any) {
+      console.error('❌ Force update failed:', forceError)
+      toast.error(
+        'Zorla güncelleme başarısız: ' + (forceError.response?.data?.message || forceError.message),
+      )
+    } finally {
+      loading.value = false
+    }
+  }
+}
+
+// 🔥 VALİDASYON HATALARINI KULLANICIYA GÖSTER
+const handleValidationErrors = async (errorData: any) => {
+  const safeChanges = []
+  const warnings = []
+  const errors = []
+
+  // Column issues'ları kategorize et
+  if (errorData.columnIssues) {
+    Object.entries(errorData.columnIssues).forEach(([columnName, issues]) => {
+      if (Array.isArray(issues)) {
+        issues.forEach((issue: string) => {
+          if (issue.startsWith('✅')) {
+            safeChanges.push(`${columnName}: ${issue.replace('✅ ', '')}`)
+          } else if (issue.startsWith('ℹ️')) {
+            safeChanges.push(`${columnName}: ${issue.replace('ℹ️ ', '')}`)
+          } else if (issue.startsWith('⚠️')) {
+            warnings.push(`${columnName}: ${issue.replace('⚠️ ', '')}`)
+          } else {
+            errors.push(`${columnName}: ${issue}`)
+          }
+        })
+      }
+    })
+  }
+
+  if (errorData.issues && Array.isArray(errorData.issues)) {
+    errors.push(...errorData.issues)
+  }
+
+  // Mesajları göster
+  if (errors.length > 0) {
+    toast.error('Hata: ' + errors.join(', '), { timeout: 7000 })
+  }
+
+  if (warnings.length > 0) {
+    toast.warning('Uyarı: ' + warnings.join(', '), { timeout: 5000 })
+  }
+
+  if (safeChanges.length > 0) {
+    toast.info('Güvenli değişiklikler mevcut: ' + safeChanges.join(', '), { timeout: 5000 })
+  }
 }
 
 const saveTable = async () => {
@@ -581,70 +820,131 @@ const saveTable = async () => {
 
   loading.value = true
   try {
-    const apiData = {
-      tableName: tableData.value.tableName.trim(),
-      description: tableData.value.description.trim(),
-      columns: tableData.value.columns.map((col, index) => ({
-        columnName: col.columnName.trim(),
-        dataType: col.dataType,
-        isRequired: col.isRequired,
-        displayOrder: index + 1,
-        defaultValue: col.defaultValue || '',
-      })),
-    }
-
     if (isEdit.value) {
-      // Tablo güncelleme
+      // 🔥 TABLO GÜNCELLEME - AKILLI VALİDASYON
       const updateData: UpdateTableRequest = {
         tableId: tableId.value,
-        ...apiData,
+        tableName: tableData.value.tableName.trim(),
+        description: tableData.value.description.trim(),
+        columns: tableData.value.columns.map((col, index) => ({
+          columnId: col.id || null,
+          columnName: col.columnName.trim(),
+          dataType: col.dataType,
+          isRequired: col.isRequired,
+          displayOrder: index + 1,
+          defaultValue: col.defaultValue || '',
+          forceUpdate: false,
+        })),
       }
 
-      console.log('Updating table with data:', updateData)
-      await apiService.updateTable(tableId.value, updateData)
-      toast.success('Tablo başarıyla güncellendi')
+      console.log('🔄 Sending table update:', updateData)
 
-      // Update original data and reset changes flag
-      originalData.value = JSON.parse(JSON.stringify(tableData.value))
+      const response = await apiService.updateTable(tableId.value, updateData)
+
+      // ✅ Başarılı güncelleme
+      toast.success('Tablo başarıyla güncellendi!')
+
+      // Güvenli değişiklikleri kullanıcıya göster
+      if (response && typeof response === 'object' && 'validationResult' in response) {
+        const validationResult = (response as any).validationResult
+        if (validationResult?.columnIssues) {
+          const safeChanges: string[] = []
+
+          Object.entries(validationResult.columnIssues).forEach(([columnName, issues]) => {
+            if (Array.isArray(issues)) {
+              issues.forEach((issue: string) => {
+                if (issue.startsWith('✅')) {
+                  safeChanges.push(`${columnName}: ${issue.replace('✅ ', '')}`)
+                } else if (issue.startsWith('ℹ️')) {
+                  safeChanges.push(`${columnName}: ${issue.replace('ℹ️ ', '')}`)
+                }
+              })
+            }
+          })
+
+          if (safeChanges.length > 0) {
+            toast.info('Güvenli değişiklikler: ' + safeChanges.join(', '), { timeout: 5000 })
+          }
+        }
+      }
+
+      await loadTable()
       hasChanges.value = false
     } else {
       // Yeni tablo oluşturma
+      const apiData: CreateTableRequest = {
+        tableName: tableData.value.tableName.trim(),
+        description: tableData.value.description.trim(),
+        columns: tableData.value.columns.map((col, index) => ({
+          columnName: col.columnName.trim(),
+          dataType: col.dataType,
+          isRequired: col.isRequired,
+          displayOrder: index + 1,
+          defaultValue: col.defaultValue || '',
+        })),
+      }
+
       console.log('Creating table with data:', apiData)
-      await apiService.createTable(apiData as CreateTableRequest)
+      await apiService.createTable(apiData)
       toast.success('Tablo başarıyla oluşturuldu')
       router.push('/tables')
     }
   } catch (error: any) {
-    console.error('Table save error:', error)
+    console.error('❌ Table save error:', error)
 
-    if (error.response) {
-      console.error('Error response data:', error.response.data)
-      console.error('Error response status:', error.response.status)
-    }
+    if (error.response?.status === 400) {
+      const errorData = error.response.data
 
-    // Improved error message handling
-    let errorMessage = 'Bilinmeyen hata'
-
-    if (error.response?.data?.message) {
-      errorMessage = error.response.data.message
-    } else if (error.response?.data?.errors) {
-      // Handle validation errors
-      const errors = error.response.data.errors
-      if (Array.isArray(errors)) {
-        errorMessage = errors
-          .map((e: any) => Object.values(e))
-          .flat()
-          .join(', ')
+      // 🔥 AKILLI HATA YÖNETİMİ
+      if (errorData.message?.includes('Zorla güncelleme gerekli')) {
+        // Force update gerekiyor
+        const originalUpdateData = {
+          tableId: tableId.value,
+          tableName: tableData.value.tableName.trim(),
+          description: tableData.value.description.trim(),
+          columns: tableData.value.columns.map((col, index) => ({
+            columnId: col.id || null,
+            columnName: col.columnName.trim(),
+            dataType: col.dataType,
+            isRequired: col.isRequired,
+            displayOrder: index + 1,
+            defaultValue: col.defaultValue || '',
+            forceUpdate: false,
+          })),
+        }
+        await handleForceUpdateRequired(errorData, originalUpdateData)
+      } else if (errorData.columnIssues || errorData.dataIssues) {
+        // Validasyon hataları
+        await handleValidationErrors(errorData)
       } else {
-        errorMessage = Object.values(errors).flat().join(', ')
+        // Genel hata
+        toast.error(errorData.message || 'Tablo güncellenirken hata oluştu')
       }
-    } else if (error.message) {
-      errorMessage = error.message
-    }
+    } else {
+      // Improved error message handling
+      let errorMessage = 'Bilinmeyen hata'
 
-    toast.error(
-      `Tablo ${isEdit.value ? 'güncellenirken' : 'oluşturulurken'} hata oluştu: ${errorMessage}`,
-    )
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error.response?.data?.errors) {
+        // Handle validation errors
+        const errors = error.response.data.errors
+        if (Array.isArray(errors)) {
+          errorMessage = errors
+            .map((e: any) => Object.values(e))
+            .flat()
+            .join(', ')
+        } else {
+          errorMessage = Object.values(errors).flat().join(', ')
+        }
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
+      toast.error(
+        `Tablo ${isEdit.value ? 'güncellenirken' : 'oluşturulurken'} hata oluştu: ${errorMessage}`,
+      )
+    }
   } finally {
     loading.value = false
   }
@@ -706,6 +1006,21 @@ const getSampleData = (column: any): string => {
   }
 }
 
+const getDefaultValueHint = (dataType: number): string => {
+  switch (dataType) {
+    case 1: // VARCHAR
+      return 'Örnek: "Varsayılan metin"'
+    case 2: // INT
+      return 'Örnek: 0, 100, -50'
+    case 3: // DECIMAL
+      return 'Örnek: 0.00, 99.99, -10.5'
+    case 4: // DATETIME
+      return 'Örnek: "2024-01-01" veya GETDATE()'
+    default:
+      return ''
+  }
+}
+
 // Initialize
 onMounted(() => {
   loadTable()
@@ -715,12 +1030,23 @@ onMounted(() => {
 <style scoped>
 .column-card {
   transition: all 0.3s ease;
-  height: 100%;
 }
 
 .column-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+.border-dashed {
+  border-style: dashed !important;
+}
+
+.text-green {
+  color: rgb(76, 175, 80);
+}
+
+.text-orange {
+  color: rgb(255, 152, 0);
 }
 
 /* Responsive adjustments */
