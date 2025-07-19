@@ -493,7 +493,7 @@ const tableData = ref({
   tableName: '',
   description: '',
   columns: [] as Array<{
-    id?: number | null
+    id?: number | null // ✅ Backend'den gelen ID
     columnName: string
     dataType: ColumnDataType
     isRequired: boolean
@@ -588,9 +588,9 @@ const loadTable = async () => {
 
   loading.value = true
   try {
-    console.log('Loading table with ID:', tableId.value)
+    console.log('🔄 Loading table with ID:', tableId.value)
     const table: ApiTable = await apiService.getTableById(tableId.value)
-    console.log('Table loaded:', table)
+    console.log('✅ Table loaded:', table)
 
     const loadedData = {
       tableName: table.tableName,
@@ -598,7 +598,7 @@ const loadTable = async () => {
       columns: table.columns
         .sort((a, b) => a.displayOrder - b.displayOrder)
         .map((col, index) => ({
-          id: col.id,
+          id: col.id, // ✅ ID'yi muhafaza et
           columnName: col.columnName,
           dataType: col.dataType as ColumnDataType,
           isRequired: col.isRequired,
@@ -607,11 +607,12 @@ const loadTable = async () => {
         })),
     }
 
+    console.log('🔧 Processed table data:', loadedData)
     tableData.value = JSON.parse(JSON.stringify(loadedData))
     originalData.value = JSON.parse(JSON.stringify(loadedData))
     hasChanges.value = false
   } catch (error: any) {
-    console.error('Table loading error:', error)
+    console.error('❌ Table loading error:', error)
     toast.error(
       'Tablo yüklenirken hata oluştu: ' + (error.response?.data?.message || error.message),
     )
@@ -621,60 +622,203 @@ const loadTable = async () => {
   }
 }
 
-const checkForChanges = () => {
-  if (!isEdit.value || !originalData.value) {
-    hasChanges.value = false
+// 🔥 SAVE TABLE METODUNU DÜZELT
+const saveTable = async () => {
+  const { valid } = await tableForm.value.validate()
+  if (!valid) {
+    toast.error('Lütfen form hatalarını düzeltin')
     return
   }
 
-  const currentDataStr = JSON.stringify(tableData.value)
-  const originalDataStr = JSON.stringify(originalData.value)
-  hasChanges.value = currentDataStr !== originalDataStr
-}
+  // Additional validation
+  if (tableData.value.columns.length === 0) {
+    toast.error('En az bir kolon eklemelisiniz')
+    return
+  }
 
-const resetChanges = () => {
-  if (originalData.value) {
-    tableData.value = JSON.parse(JSON.stringify(originalData.value))
-    hasChanges.value = false
-    toast.info('Değişiklikler geri alındı')
+  // Check for duplicate column names
+  const columnNames = tableData.value.columns.map((col) => col.columnName.toLowerCase().trim())
+  const duplicates = columnNames.filter((name, index) => columnNames.indexOf(name) !== index)
+  if (duplicates.length > 0) {
+    toast.error('Kolon adları benzersiz olmalıdır')
+    return
+  }
+
+  loading.value = true
+  try {
+    if (isEdit.value) {
+      await performTableUpdate()
+    } else {
+      // Yeni tablo oluşturma
+      const apiData = {
+        tableName: tableData.value.tableName.trim(),
+        description: tableData.value.description.trim(),
+        columns: tableData.value.columns.map((col, index) => ({
+          columnName: col.columnName.trim(),
+          dataType: col.dataType,
+          isRequired: col.isRequired,
+          displayOrder: index + 1,
+          defaultValue: col.defaultValue || '',
+        })),
+      }
+
+      console.log('Creating table with data:', apiData)
+      await apiService.createTable(apiData)
+      toast.success('Tablo başarıyla oluşturuldu')
+      router.push('/tables')
+    }
+  } catch (error: any) {
+    console.error('❌ Table save error:', error)
+    await handleTableUpdateError(error)
+  } finally {
+    loading.value = false
   }
 }
 
-const addColumn = () => {
-  tableData.value.columns.push({
-    id: null,
-    columnName: '',
-    dataType: ColumnDataType.VARCHAR,
-    isRequired: false,
-    displayOrder: tableData.value.columns.length + 1,
-    defaultValue: '',
-  })
+// 🔥 Tablo güncelleme işlemini ayrı fonksiyon yaptık
+const performTableUpdate = async () => {
+  const updateData = buildUpdateData()
 
-  nextTick(() => {
-    checkForChanges()
-  })
+  console.log('🚀 Sending table update:', updateData)
+
+  const response = await apiService.updateTable(tableId.value, updateData)
+
+  // ✅ Başarılı güncelleme
+  toast.success('Tablo başarıyla güncellendi!')
+
+  // Güvenli değişiklikleri kullanıcıya göster
+  handleSuccessfulUpdate(response)
+
+  await loadTable()
+  hasChanges.value = false
 }
 
-const removeColumn = (index: number) => {
-  if (confirm('Bu sütunu silmek istediğinizden emin misiniz?')) {
-    tableData.value.columns.splice(index, 1)
+// 🔥 Update data builder
+const buildUpdateData = (forceUpdate = false) => {
+  return {
+    tableId: tableId.value,
+    tableName: tableData.value.tableName.trim(),
+    description: tableData.value.description.trim(),
+    columns: tableData.value.columns.map((col, index) => {
+      const columnData = {
+        columnName: col.columnName.trim(),
+        dataType: col.dataType,
+        isRequired: col.isRequired,
+        displayOrder: index + 1,
+        defaultValue: col.defaultValue || '',
+        forceUpdate: forceUpdate,
+      }
 
-    // Update display orders
-    tableData.value.columns.forEach((col, idx) => {
-      col.displayOrder = idx + 1
-    })
+      // ✅ Eğer kolon ID'si varsa ekle (mevcut kolon)
+      if (col.id && col.id > 0) {
+        ;(columnData as any).columnId = col.id
+      } else {
+        // ✅ Yeni kolon - columnId null
+        ;(columnData as any).columnId = null
+      }
 
-    checkForChanges()
+      return columnData
+    }),
   }
 }
 
-const previewTable = () => {
-  previewDialog.value = true
+// 🔥 Başarılı güncelleme sonrası işlemler
+const handleSuccessfulUpdate = (response: any) => {
+  if (response && typeof response === 'object' && 'validationResult' in response) {
+    const validationResult = response.validationResult
+    if (validationResult?.columnIssues) {
+      const safeChanges: string[] = []
+
+      Object.entries(validationResult.columnIssues).forEach(([columnName, issues]) => {
+        if (Array.isArray(issues)) {
+          issues.forEach((issue: string) => {
+            if (issue.startsWith('✅')) {
+              safeChanges.push(`${columnName}: ${issue.replace('✅ ', '')}`)
+            } else if (issue.startsWith('ℹ️')) {
+              safeChanges.push(`${columnName}: ${issue.replace('ℹ️ ', '')}`)
+            }
+          })
+        }
+      })
+
+      if (safeChanges.length > 0) {
+        toast.info('Güvenli değişiklikler: ' + safeChanges.join(', '), { timeout: 5000 })
+      }
+    }
+  }
 }
 
-// 🔥 FORCE UPDATE GEREKTİĞİNDE KULLANICIYA SOR
-const handleForceUpdateRequired = async (errorData: any, originalUpdateData: any) => {
-  const issues = []
+// 🔥 Hata yönetimi
+const handleTableUpdateError = async (error: any) => {
+  if (error.response?.status === 400) {
+    const errorData = error.response.data
+
+    if (errorData.message?.includes('Zorla güncelleme gerekli') || errorData.requiresForceUpdate) {
+      // 🔥 Force update gerekiyor
+      await handleForceUpdateRequired(errorData)
+    } else if (errorData.columnIssues || errorData.dataIssues) {
+      // Validasyon hataları
+      handleValidationErrors(errorData)
+    } else {
+      // Genel hata
+      toast.error(errorData.message || 'Tablo güncellenirken hata oluştu')
+    }
+  } else {
+    // Diğer hatalar
+    const errorMessage = extractErrorMessage(error)
+    toast.error(`Tablo güncellenirken hata oluştu: ${errorMessage}`)
+  }
+}
+
+// 🔥 FORCE UPDATE HANDLER - Ana fonksiyon
+const handleForceUpdateRequired = async (errorData: any) => {
+  const issues = extractIssues(errorData)
+
+  const confirmMessage = [
+    '⚠️ Aşağıdaki değişiklikler veri kaybına neden olabilir:',
+    '',
+    ...issues,
+    '',
+    '🔍 Sistem tablonuzun içeriğini kontrol etti.',
+    'Gerçekten veri kaybı olacaksa bu uyarıyı gösteriyoruz.',
+    '',
+    '❓ Bu değişiklikleri yapmak istediğinizden emin misiniz?',
+  ].join('\n')
+
+  if (confirm(confirmMessage)) {
+    await executeForceUpdate()
+  }
+}
+
+// 🔥 Force update'i gerçekleştir
+const executeForceUpdate = async () => {
+  try {
+    loading.value = true
+
+    const forceUpdateData = buildUpdateData(true) // forceUpdate: true
+
+    console.log('🚀 Sending force update:', forceUpdateData)
+
+    const response = await apiService.updateTable(tableId.value, forceUpdateData)
+
+    if (response) {
+      toast.success('Tablo zorla güncellendi!')
+      await loadTable()
+      hasChanges.value = false
+    }
+  } catch (forceError: any) {
+    console.error('❌ Force update failed:', forceError)
+    toast.error(
+      'Zorla güncelleme başarısız: ' + (forceError.response?.data?.message || forceError.message),
+    )
+  } finally {
+    loading.value = false
+  }
+}
+
+// 🔥 Issue'ları çıkar
+const extractIssues = (errorData: any): string[] => {
+  const issues: string[] = []
 
   // Column issues'ları topla
   if (errorData.columnIssues) {
@@ -682,66 +826,29 @@ const handleForceUpdateRequired = async (errorData: any, originalUpdateData: any
       if (Array.isArray(columnIssues)) {
         columnIssues.forEach((issue: string) => {
           if (!issue.startsWith('✅') && !issue.startsWith('ℹ️')) {
-            issues.push(`${columnName}: ${issue}`)
+            issues.push(`${columnName}: ${issue.replace('⚠️ ', '')}`)
           }
         })
       }
     })
   }
 
+  if (errorData.forceUpdateReasons && Array.isArray(errorData.forceUpdateReasons)) {
+    issues.push(...errorData.forceUpdateReasons)
+  }
+
   if (errorData.dataIssues && Array.isArray(errorData.dataIssues)) {
     issues.push(...errorData.dataIssues)
   }
 
-  const confirmMessage = [
-    '⚠️ Aşağıdaki değişiklikler veri kaybına neden olabilir:',
-    '',
-    ...issues,
-    '',
-    '🔍 Ancak sistem tablonuzun içeriğini kontrol etti.',
-    'Gerçekten veri kaybı olacaksa bu uyarıyı gösteriyoruz.',
-    '',
-    '❓ Bu değişiklikleri yapmak istediğinizden emin misiniz?',
-  ].join('\n')
-
-  if (confirm(confirmMessage)) {
-    try {
-      loading.value = true
-
-      // Force update ile tekrar dene
-      const forceUpdateData = {
-        ...originalUpdateData,
-        columns: originalUpdateData.columns.map((col: any) => ({
-          ...col,
-          forceUpdate: true,
-        })),
-      }
-
-      console.log('🚀 Sending force update:', forceUpdateData)
-
-      const response = await apiService.updateTable(tableId.value, forceUpdateData)
-
-      if (response) {
-        toast.success('Tablo zorla güncellendi!')
-        await loadTable()
-        hasChanges.value = false
-      }
-    } catch (forceError: any) {
-      console.error('❌ Force update failed:', forceError)
-      toast.error(
-        'Zorla güncelleme başarısız: ' + (forceError.response?.data?.message || forceError.message),
-      )
-    } finally {
-      loading.value = false
-    }
-  }
+  return issues
 }
 
 // 🔥 VALİDASYON HATALARINI KULLANICIYA GÖSTER
-const handleValidationErrors = async (errorData: any) => {
-  const safeChanges = []
-  const warnings = []
-  const errors = []
+const handleValidationErrors = (errorData: any) => {
+  const safeChanges: string[] = []
+  const warnings: string[] = []
+  const errors: string[] = []
 
   // Column issues'ları kategorize et
   if (errorData.columnIssues) {
@@ -780,174 +887,94 @@ const handleValidationErrors = async (errorData: any) => {
   }
 }
 
-const saveTable = async () => {
-  const { valid } = await tableForm.value.validate()
-  if (!valid) {
-    toast.error('Lütfen form hatalarını düzeltin')
-    return
-  }
-
-  // Additional validation
-  if (tableData.value.columns.length === 0) {
-    toast.error('En az bir kolon eklemelisiniz')
-    return
-  }
-
-  // Check for duplicate column names
-  const columnNames = tableData.value.columns.map((col) => col.columnName.toLowerCase().trim())
-  const duplicates = columnNames.filter((name, index) => columnNames.indexOf(name) !== index)
-  if (duplicates.length > 0) {
-    toast.error('Kolon adları benzersiz olmalıdır')
-    return
-  }
-
-  // Validate column data types
-  const invalidColumns = tableData.value.columns.filter(
-    (col) =>
-      col.dataType === null ||
-      col.dataType === undefined ||
-      ![
-        ColumnDataType.VARCHAR,
-        ColumnDataType.INT,
-        ColumnDataType.DECIMAL,
-        ColumnDataType.DATETIME,
-      ].includes(col.dataType),
-  )
-  if (invalidColumns.length > 0) {
-    toast.error('Tüm kolonlar için geçerli veri tipi seçmelisiniz')
-    return
-  }
-
-  loading.value = true
-  try {
-    if (isEdit.value) {
-      // 🔥 TABLO GÜNCELLEME - AKILLI VALİDASYON
-      const updateData: UpdateTableRequest = {
-        tableId: tableId.value,
-        tableName: tableData.value.tableName.trim(),
-        description: tableData.value.description.trim(),
-        columns: tableData.value.columns.map((col, index) => ({
-          columnId: col.id || null,
-          columnName: col.columnName.trim(),
-          dataType: col.dataType,
-          isRequired: col.isRequired,
-          displayOrder: index + 1,
-          defaultValue: col.defaultValue || '',
-          forceUpdate: false,
-        })),
-      }
-
-      console.log('🔄 Sending table update:', updateData)
-
-      const response = await apiService.updateTable(tableId.value, updateData)
-
-      // ✅ Başarılı güncelleme
-      toast.success('Tablo başarıyla güncellendi!')
-
-      // Güvenli değişiklikleri kullanıcıya göster
-      if (response && typeof response === 'object' && 'validationResult' in response) {
-        const validationResult = (response as any).validationResult
-        if (validationResult?.columnIssues) {
-          const safeChanges: string[] = []
-
-          Object.entries(validationResult.columnIssues).forEach(([columnName, issues]) => {
-            if (Array.isArray(issues)) {
-              issues.forEach((issue: string) => {
-                if (issue.startsWith('✅')) {
-                  safeChanges.push(`${columnName}: ${issue.replace('✅ ', '')}`)
-                } else if (issue.startsWith('ℹ️')) {
-                  safeChanges.push(`${columnName}: ${issue.replace('ℹ️ ', '')}`)
-                }
-              })
-            }
-          })
-
-          if (safeChanges.length > 0) {
-            toast.info('Güvenli değişiklikler: ' + safeChanges.join(', '), { timeout: 5000 })
-          }
-        }
-      }
-
-      await loadTable()
-      hasChanges.value = false
+// 🔥 Error message çıkarıcı
+const extractErrorMessage = (error: any): string => {
+  if (error.response?.data?.message) {
+    return error.response.data.message
+  } else if (error.response?.data?.errors) {
+    const errors = error.response.data.errors
+    if (Array.isArray(errors)) {
+      return errors
+        .map((e: any) => Object.values(e))
+        .flat()
+        .join(', ')
     } else {
-      // Yeni tablo oluşturma
-      const apiData: CreateTableRequest = {
-        tableName: tableData.value.tableName.trim(),
-        description: tableData.value.description.trim(),
-        columns: tableData.value.columns.map((col, index) => ({
-          columnName: col.columnName.trim(),
-          dataType: col.dataType,
-          isRequired: col.isRequired,
-          displayOrder: index + 1,
-          defaultValue: col.defaultValue || '',
-        })),
-      }
-
-      console.log('Creating table with data:', apiData)
-      await apiService.createTable(apiData)
-      toast.success('Tablo başarıyla oluşturuldu')
-      router.push('/tables')
+      return Object.values(errors).flat().join(', ')
     }
-  } catch (error: any) {
-    console.error('❌ Table save error:', error)
-
-    if (error.response?.status === 400) {
-      const errorData = error.response.data
-
-      // 🔥 AKILLI HATA YÖNETİMİ
-      if (errorData.message?.includes('Zorla güncelleme gerekli')) {
-        // Force update gerekiyor
-        const originalUpdateData = {
-          tableId: tableId.value,
-          tableName: tableData.value.tableName.trim(),
-          description: tableData.value.description.trim(),
-          columns: tableData.value.columns.map((col, index) => ({
-            columnId: col.id || null,
-            columnName: col.columnName.trim(),
-            dataType: col.dataType,
-            isRequired: col.isRequired,
-            displayOrder: index + 1,
-            defaultValue: col.defaultValue || '',
-            forceUpdate: false,
-          })),
-        }
-        await handleForceUpdateRequired(errorData, originalUpdateData)
-      } else if (errorData.columnIssues || errorData.dataIssues) {
-        // Validasyon hataları
-        await handleValidationErrors(errorData)
-      } else {
-        // Genel hata
-        toast.error(errorData.message || 'Tablo güncellenirken hata oluştu')
-      }
-    } else {
-      // Improved error message handling
-      let errorMessage = 'Bilinmeyen hata'
-
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message
-      } else if (error.response?.data?.errors) {
-        // Handle validation errors
-        const errors = error.response.data.errors
-        if (Array.isArray(errors)) {
-          errorMessage = errors
-            .map((e: any) => Object.values(e))
-            .flat()
-            .join(', ')
-        } else {
-          errorMessage = Object.values(errors).flat().join(', ')
-        }
-      } else if (error.message) {
-        errorMessage = error.message
-      }
-
-      toast.error(
-        `Tablo ${isEdit.value ? 'güncellenirken' : 'oluşturulurken'} hata oluştu: ${errorMessage}`,
-      )
-    }
-  } finally {
-    loading.value = false
+  } else if (error.message) {
+    return error.message
   }
+  return 'Bilinmeyen hata'
+}
+
+const checkForChanges = () => {
+  if (!isEdit.value || !originalData.value) {
+    hasChanges.value = false
+    return
+  }
+
+  const currentDataStr = JSON.stringify(tableData.value)
+  const originalDataStr = JSON.stringify(originalData.value)
+  hasChanges.value = currentDataStr !== originalDataStr
+}
+
+const resetChanges = () => {
+  if (originalData.value) {
+    tableData.value = JSON.parse(JSON.stringify(originalData.value))
+    hasChanges.value = false
+    toast.info('Değişiklikler geri alındı')
+  }
+}
+
+const addColumn = () => {
+  const newColumn = {
+    id: null, // ✅ Yeni kolon - ID yok
+    columnName: '',
+    dataType: ColumnDataType.VARCHAR,
+    isRequired: false,
+    displayOrder: tableData.value.columns.length + 1,
+    defaultValue: '',
+  }
+
+  console.log('➕ Adding new column:', newColumn)
+  tableData.value.columns.push(newColumn)
+
+  nextTick(() => {
+    checkForChanges()
+  })
+}
+
+const removeColumn = (index: number) => {
+  const column = tableData.value.columns[index]
+  const columnInfo = column.id
+    ? `mevcut kolon "${column.columnName}"`
+    : `yeni kolon "${column.columnName}"`
+
+  if (confirm(`${columnInfo} kolonunu silmek istediğinizden emin misiniz?`)) {
+    console.log(`🗑️ Removing column at index ${index}:`, {
+      columnName: column.columnName,
+      columnId: column.id,
+      isExisting: !!column.id,
+    })
+
+    tableData.value.columns.splice(index, 1)
+
+    // Update display orders
+    tableData.value.columns.forEach((col, idx) => {
+      col.displayOrder = idx + 1
+    })
+
+    console.log(
+      `✅ Column removed. Remaining columns:`,
+      tableData.value.columns.map((c) => ({ name: c.columnName, id: c.id })),
+    )
+
+    checkForChanges()
+  }
+}
+
+const previewTable = () => {
+  previewDialog.value = true
 }
 
 const goBack = () => {
