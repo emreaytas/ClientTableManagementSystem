@@ -23,27 +23,6 @@
     <!-- 🔥 YENİ: Akıllı Bilgilendirme Alert'leri -->
     <v-row v-if="isEdit">
       <v-col cols="12">
-        <!-- Genel bilgilendirme -->
-        <v-alert type="info" variant="tonal" class="mb-4" icon="mdi-information">
-          <v-alert-title>💡 Akıllı Tablo Güncelleme Sistemi</v-alert-title>
-          <div class="mt-2">
-            <p>
-              <strong
-                >Sistem tablonuzun içeriğini analiz ederek güvenli güncellemeler yapar:</strong
-              >
-            </p>
-            <ul class="mt-2 ml-4">
-              <li>
-                📊 <strong>Boş kolonlar:</strong> Herhangi bir veri tipi değişikliğine izin verilir
-              </li>
-              <li>🔢 <strong>INT → DECIMAL:</strong> Her zaman güvenli (veri kaybı olmaz)</li>
-              <li>📝 <strong>Sayısal → TEXT:</strong> Her zaman güvenli (veri kaybı olmaz)</li>
-              <li>⚠️ <strong>TEXT → Sayısal:</strong> Geçersiz veriler kontrol edilir</li>
-              <li>🗑️ <strong>Kolon silme:</strong> Sadece veri içeren kolonlarda uyarı verir</li>
-            </ul>
-          </div>
-        </v-alert>
-
         <!-- Değişiklik bilgisi -->
         <v-alert v-if="hasChanges" type="warning" variant="tonal" class="mb-4" icon="mdi-pencil">
           <v-alert-title>📝 Değişiklikler Tespit Edildi</v-alert-title>
