@@ -145,6 +145,28 @@ export interface UpdateTableDataRequest {
   columnValues: Record<string, string> // Column NAME → value (string)
 }
 
+export interface TableListDto {
+  id: number
+  tableName: string
+  description: string
+  createdAt: string
+  updatedAt?: string
+  columnCount: number
+  formattedDate: string
+  statusBadge: string
+  statusColor: string
+  columns: ColumnSummaryDto[]
+}
+
+export interface ColumnSummaryDto {
+  id: number
+  columnName: string
+  dataType: number
+  isRequired: boolean
+  defaultValue: string
+  dataTypeLabel: string
+  dataTypeColor: string
+}
 // Dashboard istatistikleri
 export interface DashboardStats {
   totalTables: number
@@ -204,6 +226,27 @@ apiClient.interceptors.response.use(
 class ApiService {
   // ========== AUTHENTICATION ==========
 
+  async getAllTables(): Promise<ApiResponse<ApiTable[]>> {
+    try {
+      const response = await apiClient.get<ApiResponse<ApiTable[]>>('/Tables/legacy')
+      return response.data
+    } catch (error) {
+      console.error('Legacy tables error:', error)
+      throw this.extractError(error)
+    }
+  }
+
+  // DevExpress endpoint (grid view için)
+  async getTablesDevExpress(): Promise<any> {
+    try {
+      const response = await apiClient.get('/Tables')
+      return response.data
+    } catch (error) {
+      console.error('DevExpress tables error:', error)
+      throw this.extractError(error)
+    }
+  }
+
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
       const response = await apiClient.post<LoginResponse>('/Auth/login', credentials)
@@ -240,16 +283,6 @@ class ApiService {
   }
 
   // ========== TABLES ==========
-
-  async getAllTables(): Promise<ApiResponse<ApiTable[]>> {
-    try {
-      const response = await apiClient.get<ApiResponse<ApiTable[]>>('/Tables')
-      return response.data
-    } catch (error) {
-      console.error('Error fetching tables:', error)
-      throw this.extractError(error)
-    }
-  }
 
   async getTableById(id: number): Promise<ApiTable> {
     try {
