@@ -1,323 +1,427 @@
 <template>
-  <div class="devexpress-dashboard">
-    <!-- Modern Header -->
-    <div class="dashboard-header">
-      <div class="header-content">
-        <div class="header-left">
-          <div class="header-icon">
-            <i class="dx-icon-favorite"></i>
-          </div>
-          <div class="header-text">
-            <h1>Tablo Yönetim Sistemi</h1>
-            <p>DevExpress ile güçlendirilmiş modern tablo yönetimi</p>
-          </div>
+  <div class="dashboard-container">
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-wrapper">
+      <div class="loading-box">
+        <div class="spinner">
+          <i class="dx-icon-spinup"></i>
         </div>
-
-        <div class="header-actions">
-          <DxButton
-            text="Yeni Tablo"
-            type="success"
-            styling-mode="contained"
-            icon="plus"
-            @click="createTable"
-            class="create-btn"
-          />
-          <DxButton
-            text="Yenile"
-            type="normal"
-            styling-mode="outlined"
-            icon="refresh"
-            @click="refreshData"
-            :disabled="loading"
-            class="refresh-btn"
-          />
-        </div>
+        <h3>Tablolar Yükleniyor...</h3>
+        <p>Lütfen bekleyin</p>
       </div>
     </div>
 
-    <!-- Statistics Cards -->
-    <div class="stats-container" v-if="!loading">
-      <div class="stats-grid">
-        <div class="stat-card total-tables">
-          <div class="stat-icon">
-            <i class="dx-icon-folder"></i>
+    <!-- Main Content -->
+    <div v-else class="dashboard-content">
+      <!-- Header Section -->
+      <div class="dashboard-header">
+        <div class="header-content">
+          <div class="header-info">
+            <div class="header-icon">
+              <i class="dx-icon-chart"></i>
+            </div>
+            <div class="header-text">
+              <h1>Tablo Yönetim Paneli</h1>
+              <p>{{ gridData.length }} tablo • {{ totalColumns }} kolon</p>
+            </div>
           </div>
-          <div class="stat-content">
-            <div class="stat-number">{{ stats.totalTables }}</div>
-            <div class="stat-label">Toplam Tablo</div>
-            <div class="stat-trend">+{{ stats.tablesThisMonth }} bu ay</div>
-          </div>
-        </div>
-
-        <div class="stat-card active-tables">
-          <div class="stat-icon">
-            <i class="dx-icon-check"></i>
-          </div>
-          <div class="stat-content">
-            <div class="stat-number">{{ stats.activeTables }}</div>
-            <div class="stat-label">Aktif Tablo</div>
-            <div class="stat-trend">%100 aktif</div>
-          </div>
-        </div>
-
-        <div class="stat-card recent-tables">
-          <div class="stat-icon">
-            <i class="dx-icon-clock"></i>
-          </div>
-          <div class="stat-content">
-            <div class="stat-number">{{ stats.tablesThisMonth }}</div>
-            <div class="stat-label">Bu Ay Oluşturulan</div>
-            <div class="stat-trend">Son 30 gün</div>
-          </div>
-        </div>
-
-        <div class="stat-card total-columns">
-          <div class="stat-icon">
-            <i class="dx-icon-columnchooser"></i>
-          </div>
-          <div class="stat-content">
-            <div class="stat-number">{{ totalColumns }}</div>
-            <div class="stat-label">Toplam Kolon</div>
-            <div class="stat-trend">Tüm tablolarda</div>
+          <div class="header-buttons">
+            <DxButton
+              text="Yeni Tablo"
+              type="success"
+              styling-mode="contained"
+              icon="plus"
+              @click="createTable"
+            />
+            <DxButton
+              text="Yenile"
+              type="normal"
+              styling-mode="outlined"
+              icon="refresh"
+              @click="refreshData"
+              :disabled="refreshing"
+            />
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Main DataGrid -->
-    <div class="main-grid-container">
-      <DxDataGrid
-        :data-source="dataSource"
-        :allow-column-reordering="true"
-        :allow-column-resizing="true"
-        :row-alternation-enabled="true"
-        :show-borders="false"
-        :hover-state-enabled="true"
-        key-expr="id"
-        @row-click="onRowClick"
-        class="modern-grid"
-        :height="600"
+      <!-- Statistics Cards -->
+      <div class="stats-section">
+        <div class="stats-cards">
+          <div class="stat-card blue">
+            <div class="stat-icon">
+              <i class="dx-icon-folder"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-number">{{ gridData.length }}</div>
+              <div class="stat-label">Toplam Tablo</div>
+              <div class="stat-extra">{{ monthlyTables }} bu ay</div>
+            </div>
+          </div>
+
+          <div class="stat-card green">
+            <div class="stat-icon">
+              <i class="dx-icon-check"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-number">{{ gridData.length }}</div>
+              <div class="stat-label">Aktif Tablo</div>
+              <div class="stat-extra">%100 aktif</div>
+            </div>
+          </div>
+
+          <div class="stat-card orange">
+            <div class="stat-icon">
+              <i class="dx-icon-clock"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-number">{{ monthlyTables }}</div>
+              <div class="stat-label">Bu Ay Oluşturulan</div>
+              <div class="stat-extra">Son 30 gün</div>
+            </div>
+          </div>
+
+          <div class="stat-card purple">
+            <div class="stat-icon">
+              <i class="dx-icon-columnchooser"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-number">{{ totalColumns }}</div>
+              <div class="stat-label">Toplam Kolon</div>
+              <div class="stat-extra">{{ averageColumns }} ortalama</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Grid Section -->
+      <div class="grid-section">
+        <div class="grid-header">
+          <h2>
+            <i class="dx-icon-table"></i>
+            Tablo Listesi
+          </h2>
+          <div class="grid-actions">
+            <DxButton
+              text="Excel Export"
+              icon="export"
+              styling-mode="outlined"
+              @click="exportGrid"
+            />
+          </div>
+        </div>
+
+        <div class="grid-container">
+          <DxDataGrid
+            ref="gridRef"
+            :data-source="gridData"
+            :show-borders="true"
+            :row-alternation-enabled="true"
+            :hover-state-enabled="true"
+            :allow-column-reordering="true"
+            :allow-column-resizing="true"
+            key-expr="id"
+            @row-click="onRowClick"
+            class="main-grid"
+          >
+            <!-- Grid Features -->
+            <DxLoadPanel :enabled="false" />
+            <DxSelection mode="multiple" />
+
+            <!-- Paging -->
+            <DxPaging :enabled="true" :page-size="20" />
+            <DxPager
+              :show-page-size-selector="true"
+              :allowed-page-sizes="[10, 20, 50, 100]"
+              :show-navigation-buttons="true"
+              :show-info="true"
+              info-text="Sayfa {0} / {1} ({2} kayıt)"
+            />
+
+            <!-- Search & Filter -->
+            <DxSearchPanel :visible="true" :width="400" placeholder="Tablolarda ara..." />
+            <DxFilterRow :visible="true" />
+            <DxHeaderFilter :visible="true" />
+
+            <!-- Grouping -->
+            <DxGroupPanel :visible="true" />
+            <DxGrouping :auto-expand-all="false" />
+
+            <!-- Export & Column Chooser -->
+            <DxColumnChooser :enabled="true" />
+            <DxExport :enabled="true" :allow-export-selected-data="true" file-name="tablolar" />
+            <DxSorting mode="multiple" />
+
+            <!-- Columns -->
+            <DxColumn
+              data-field="id"
+              caption="ID"
+              :width="80"
+              alignment="center"
+              data-type="number"
+            />
+
+            <DxColumn
+              data-field="tableName"
+              caption="Tablo Adı"
+              :width="250"
+              cell-template="tableNameTemplate"
+            />
+
+            <DxColumn
+              data-field="description"
+              caption="Açıklama"
+              :width="300"
+              cell-template="descriptionTemplate"
+            />
+
+            <DxColumn
+              data-field="columnCount"
+              caption="Kolon Sayısı"
+              :width="140"
+              alignment="center"
+              data-type="number"
+              cell-template="columnCountTemplate"
+            />
+
+            <DxColumn
+              data-field="createdAt"
+              caption="Oluşturma Tarihi"
+              :width="180"
+              data-type="datetime"
+              format="dd.MM.yyyy HH:mm"
+            />
+
+            <DxColumn
+              data-field="statusBadge"
+              caption="Durum"
+              :width="120"
+              alignment="center"
+              cell-template="statusTemplate"
+            />
+
+            <DxColumn
+              caption="İşlemler"
+              :width="200"
+              :allow-sorting="false"
+              :allow-filtering="false"
+              cell-template="actionsTemplate"
+              :fixed="true"
+              fixed-position="right"
+            />
+
+            <!-- Summary -->
+            <DxSummary>
+              <DxTotalItem
+                column="tableName"
+                summary-type="count"
+                display-format="Toplam: {0} tablo"
+              />
+              <DxTotalItem
+                column="columnCount"
+                summary-type="sum"
+                display-format="Toplam kolon: {0}"
+              />
+              <DxTotalItem
+                column="columnCount"
+                summary-type="avg"
+                display-format="Ortalama: {0} kolon/tablo"
+                :value-format="{ type: 'fixedPoint', precision: 1 }"
+              />
+            </DxSummary>
+
+            <!-- Cell Templates -->
+            <template #tableNameTemplate="{ data }">
+              <div class="table-name-cell">
+                <div class="table-icon">📋</div>
+                <div class="table-details">
+                  <div class="table-title">{{ data.tableName || 'İsimsiz Tablo' }}</div>
+                  <div class="table-id">ID: {{ data.id }}</div>
+                </div>
+              </div>
+            </template>
+
+            <template #descriptionTemplate="{ data }">
+              <div class="description-cell">
+                <span class="description-text">
+                  {{ data.description || 'Açıklama yok' }}
+                </span>
+              </div>
+            </template>
+
+            <template #columnCountTemplate="{ data }">
+              <div class="column-count-cell">
+                <div class="count-badge" :class="getCountBadgeClass(data.columnCount || 0)">
+                  <i class="dx-icon-columnchooser"></i>
+                  {{ data.columnCount || 0 }}
+                </div>
+              </div>
+            </template>
+
+            <template #statusTemplate="{ data }">
+              <div class="status-cell">
+                <div class="status-badge" :class="getStatusClass(data.statusBadge)">
+                  <i :class="getStatusIcon(data.statusBadge)"></i>
+                  {{ data.statusBadge || 'Bilinmiyor' }}
+                </div>
+              </div>
+            </template>
+
+            <template #actionsTemplate="{ data }">
+              <div class="actions-cell">
+                <DxButton
+                  hint="Verileri Görüntüle"
+                  icon="detailslayout"
+                  styling-mode="text"
+                  @click="viewTableData(data.id)"
+                  class="action-btn"
+                />
+                <DxButton
+                  hint="Düzenle"
+                  icon="edit"
+                  styling-mode="text"
+                  @click="editTable(data.id)"
+                  class="action-btn"
+                />
+                <DxButton
+                  hint="Veri Ekle"
+                  icon="plus"
+                  styling-mode="text"
+                  type="success"
+                  @click="addTableData(data.id)"
+                  class="action-btn"
+                />
+                <DxButton
+                  hint="Sil"
+                  icon="trash"
+                  styling-mode="text"
+                  type="danger"
+                  @click="confirmDelete(data)"
+                  class="action-btn"
+                />
+              </div>
+            </template>
+          </DxDataGrid>
+        </div>
+      </div>
+
+      <!-- Delete Popup -->
+      <DxPopup
+        v-model:visible="deletePopup.visible"
+        :width="deletePopup.version.width"
+        :height="deletePopup.version.height"
+        :title="deletePopup.version.title"
+        :show-close-button="true"
+        :drag-enabled="false"
+        :resize-enabled="false"
       >
-        <!-- Loading Panel -->
-        <DxLoadPanel :enabled="loading" />
-
-        <!-- Selection -->
-        <DxSelection mode="multiple" />
-
-        <!-- Sayfalama -->
-        <DxPaging :enabled="true" :page-size="15" />
-        <DxPager
-          :show-page-size-selector="true"
-          :allowed-page-sizes="[10, 15, 25, 50]"
-          :show-navigation-buttons="true"
-          :show-info="true"
-          info-text="Sayfa {0} / {1} ({2} kayıt)"
-        />
-
-        <!-- Arama ve filtreleme -->
-        <DxSearchPanel
-          :visible="true"
-          :width="350"
-          placeholder="Tablolarda ara... (Tablo adı, açıklama)"
-        />
-        <DxFilterRow :visible="true" />
-        <DxHeaderFilter :visible="true" />
-
-        <!-- Gruplandırma -->
-        <DxGroupPanel :visible="true" />
-        <DxGrouping :auto-expand-all="false" />
-
-        <!-- Sütun seçimi -->
-        <DxColumnChooser :enabled="true" />
-
-        <!-- Export -->
-        <DxExport :enabled="true" :allow-export-selected-data="true" file-name="tablo-listesi" />
-
-        <!-- Sıralama -->
-        <DxSorting mode="multiple" />
-
-        <!-- Sütun tanımları -->
-        <DxColumn
-          data-field="tableName"
-          caption="📋 Tablo Adı"
-          :width="220"
-          :allow-sorting="true"
-          :allow-filtering="true"
-          cell-template="tableNameTemplate"
-        />
-
-        <DxColumn
-          data-field="description"
-          caption="📝 Açıklama"
-          :width="280"
-          cell-template="descriptionTemplate"
-        />
-
-        <DxColumn
-          data-field="columnCount"
-          caption="📊 Kolon Sayısı"
-          :width="140"
-          data-type="number"
-          alignment="center"
-          cell-template="columnCountTemplate"
-        />
-
-        <DxColumn
-          data-field="formattedDate"
-          caption="📅 Oluşturma Tarihi"
-          :width="160"
-          data-type="date"
-        />
-
-        <DxColumn
-          data-field="statusBadge"
-          caption="🏷️ Durum"
-          :width="120"
-          alignment="center"
-          cell-template="statusTemplate"
-          :allow-sorting="false"
-        />
-
-        <DxColumn
-          caption="⚡ İşlemler"
-          :width="200"
-          :allow-sorting="false"
-          :allow-filtering="false"
-          cell-template="actionsTemplate"
-          :fixed="true"
-          fixed-position="right"
-        />
-
-        <!-- Summary -->
-        <DxSummary>
-          <DxTotalItem column="tableName" summary-type="count" display-format="Toplam: {0} tablo" />
-          <DxTotalItem column="columnCount" summary-type="sum" display-format="Toplam kolon: {0}" />
-          <DxTotalItem
-            column="columnCount"
-            summary-type="avg"
-            display-format="Ortalama: {0} kolon/tablo"
-            :value-format="{ type: 'fixedPoint', precision: 1 }"
-          />
-        </DxSummary>
-      </DxDataGrid>
-    </div>
-
-    <!-- Templates -->
-    <template #tableNameTemplate="{ data }">
-      <div class="table-name-cell">
-        <div class="table-icon">📋</div>
-        <div class="table-info">
-          <div class="table-title">{{ data.tableName }}</div>
-          <div class="table-id">ID: {{ data.id }}</div>
-        </div>
-      </div>
-    </template>
-
-    <template #descriptionTemplate="{ data }">
-      <div class="description-cell">
-        <div class="description-text">
-          {{ data.description || 'Açıklama bulunmuyor' }}
-        </div>
-      </div>
-    </template>
-
-    <template #columnCountTemplate="{ data }">
-      <div class="column-count-cell">
-        <div class="count-badge" :class="getCountBadgeClass(data.columnCount)">
-          <i class="dx-icon-columnchooser"></i>
-          <span>{{ data.columnCount }}</span>
-        </div>
-        <div class="count-label">{{ data.statusBadge }}</div>
-      </div>
-    </template>
-
-    <template #statusTemplate="{ data }">
-      <div class="status-cell">
-        <div class="status-badge" :class="getStatusClass(data.statusBadge)">
-          <i :class="getStatusIcon(data.statusBadge)"></i>
-          <span>{{ data.statusBadge }}</span>
-        </div>
-      </div>
-    </template>
-
-    <template #actionsTemplate="{ data }">
-      <div class="actions-cell">
-        <DxButton
-          hint="Verileri Görüntüle"
-          icon="detailslayout"
-          styling-mode="text"
-          type="normal"
-          @click="viewTableData(data.id)"
-          class="action-btn view-btn"
-        />
-        <DxButton
-          hint="Tabloyu Düzenle"
-          icon="edit"
-          styling-mode="text"
-          type="normal"
-          @click="editTable(data.id)"
-          class="action-btn edit-btn"
-        />
-        <DxButton
-          hint="Veri Ekle"
-          icon="plus"
-          styling-mode="text"
-          type="success"
-          @click="addTableData(data.id)"
-          class="action-btn add-btn"
-        />
-        <DxButton
-          hint="Tabloyu Sil"
-          icon="trash"
-          styling-mode="text"
-          type="danger"
-          @click="confirmDelete(data)"
-          class="action-btn delete-btn"
-        />
-      </div>
-    </template>
-
-    <!-- Delete Confirmation Popup -->
-    <DxPopup
-      v-model:visible="deleteDialogVisible"
-      :width="400"
-      :height="250"
-      title="Tablo Sil"
-      :show-close-button="true"
-      :drag-enabled="false"
-      :resize-enabled="false"
-    >
-      <div class="delete-confirmation">
-        <div class="delete-icon">
-          <i class="dx-icon-warning"></i>
-        </div>
-        <div class="delete-message">
-          <h3>{{ selectedTable?.tableName }}</h3>
-          <p>Bu tabloyu silmek istediğinizden emin misiniz?</p>
-          <div class="warning-text">
-            ⚠️ Bu işlem geri alınamaz ve tablodaki tüm veriler silinecektir.
+        <!-- Version 1: Simple -->
+        <div v-if="deletePopup.currentVersion === 1" class="delete-v1">
+          <div class="delete-simple">
+            <div class="delete-icon">
+              <i class="dx-icon-warning"></i>
+            </div>
+            <h3>{{ selectedTable?.tableName }}</h3>
+            <p>Bu tabloyu silmek istediğinizden emin misiniz?</p>
           </div>
         </div>
-      </div>
 
-      <template #bottom>
-        <div class="delete-actions">
-          <DxButton
-            text="İptal"
-            type="normal"
-            styling-mode="outlined"
-            @click="deleteDialogVisible = false"
-          />
-          <DxButton
-            text="Sil"
-            type="danger"
-            styling-mode="contained"
-            @click="deleteTable"
-            :disabled="deleteLoading"
-          />
+        <!-- Version 2: Detailed -->
+        <div v-else-if="deletePopup.currentVersion === 2" class="delete-v2">
+          <div class="delete-detailed">
+            <div class="warning-header">
+              <i class="dx-icon-warning"></i>
+              <h3>{{ selectedTable?.tableName }}</h3>
+            </div>
+            <div class="warning-content">
+              <div class="warning-box">
+                <h4>⚠️ DİKKAT: Bu işlem geri alınamaz!</h4>
+                <ul>
+                  <li>Tablodaki tüm veriler silinecek</li>
+                  <li>Tablo yapısı tamamen kaldırılacak</li>
+                  <li>İlişkili kayıtlar kaybolacak</li>
+                </ul>
+              </div>
+              <div class="table-info">
+                <div class="info-item">
+                  <span>Kolon Sayısı:</span>
+                  <strong>{{ selectedTable?.columnCount || 0 }}</strong>
+                </div>
+                <div class="info-item">
+                  <span>Oluşturma Tarihi:</span>
+                  <strong>{{ formatDate(selectedTable?.createdAt) }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </template>
-    </DxPopup>
+
+        <!-- Version 3: Security -->
+        <div v-else-if="deletePopup.currentVersion === 3" class="delete-v3">
+          <div class="delete-security">
+            <div class="security-header">
+              <i class="dx-icon-key"></i>
+              <h3>Güvenlik Doğrulaması</h3>
+            </div>
+            <div class="danger-zone">
+              <h4>🚨 DANGER ZONE</h4>
+              <p>
+                <strong>{{ selectedTable?.tableName }}</strong> tablosunu silmek için:
+              </p>
+            </div>
+
+            <div class="confirmation-input">
+              <label>Tablo adını yazın:</label>
+              <DxTextBox
+                v-model:value="deletePopup.confirmText"
+                placeholder="Tablo adını buraya yazın..."
+              />
+            </div>
+
+            <div class="security-checks">
+              <DxCheckBox
+                v-model:value="deletePopup.backupCheck"
+                text="Verilerimin yedeğini aldım"
+              />
+              <DxCheckBox
+                v-model:value="deletePopup.riskCheck"
+                text="Bu işlemin geri alınamayacağını anlıyorum"
+              />
+              <DxCheckBox
+                v-model:value="deletePopup.finalCheck"
+                text="Tabloyu kalıcı olarak silmek istiyorum"
+              />
+            </div>
+          </div>
+        </div>
+
+        <template #bottom>
+          <div class="popup-footer">
+            <div class="version-controls">
+              <DxButton
+                v-if="deletePopup.currentVersion < 3"
+                :text="`Güvenli Mod (v${deletePopup.currentVersion + 1})`"
+                styling-mode="outlined"
+                icon="dx-icon-lock"
+                @click="upgradeVersion"
+              />
+              <DxButton
+                v-if="deletePopup.currentVersion > 1"
+                :text="`Basit Mod (v${deletePopup.currentVersion - 1})`"
+                styling-mode="text"
+                icon="dx-icon-unlock"
+                @click="downgradeVersion"
+              />
+            </div>
+
+            <div class="main-controls">
+              <DxButton text="İptal" styling-mode="outlined" @click="cancelDelete" />
+              <DxButton text="Sil" type="danger" @click="executeDelete" :disabled="!canDelete" />
+            </div>
+          </div>
+        </template>
+      </DxPopup>
+    </div>
   </div>
 </template>
 
@@ -345,144 +449,191 @@ import {
 } from 'devextreme-vue/data-grid'
 import { DxButton } from 'devextreme-vue/button'
 import { DxPopup } from 'devextreme-vue/popup'
-import ArrayStore from 'devextreme/data/array_store'
-import { apiService } from '@/services/api'
+import { DxTextBox } from 'devextreme-vue/text-box'
+import { DxCheckBox } from 'devextreme-vue/check-box'
+import { apiService, type TableListDto } from '@/services/api'
 
-// Interfaces
-interface TableListDto {
-  id: number
-  tableName: string
-  description: string
-  createdAt: string
-  updatedAt?: string
-  columnCount: number
-  formattedDate: string
-  statusBadge: string
-  statusColor: string
-  columns: any[]
-}
-
-// Composables
+// Router & Toast
 const router = useRouter()
 const toast = useToast()
 
-// Reactive Data
+// State
 const loading = ref(true)
-const deleteLoading = ref(false)
-const deleteDialogVisible = ref(false)
-const selectedTable = ref<TableListDto | null>(null)
+const refreshing = ref(false)
 const gridData = ref<TableListDto[]>([])
+const gridRef = ref()
+const selectedTable = ref<TableListDto | null>(null)
 
-const stats = ref({
-  totalTables: 0,
-  totalRecords: 0,
-  tablesThisMonth: 0,
-  activeTables: 0,
+// Delete Popup State
+const deleteVersions = {
+  1: { width: 400, height: 250, title: 'Tablo Sil' },
+  2: { width: 500, height: 350, title: 'Tablo Silme Onayı' },
+  3: { width: 600, height: 450, title: 'Güvenlik Doğrulaması' },
+}
+
+const deletePopup = ref({
+  visible: false,
+  currentVersion: 1,
+  version: deleteVersions[1],
+  confirmText: '',
+  backupCheck: false,
+  riskCheck: false,
+  finalCheck: false,
 })
 
-// DataSource
-const dataSource = ref(
-  new ArrayStore({
-    key: 'id',
-    data: [],
-  }),
-)
-
-// Computed
+// Computed Properties
 const totalColumns = computed(() => {
-  return gridData.value.reduce((sum, table) => sum + table.columnCount, 0)
+  return gridData.value.reduce((sum, table) => sum + (table.columnCount || 0), 0)
+})
+
+const averageColumns = computed(() => {
+  if (gridData.value.length === 0) return '0.0'
+  return (totalColumns.value / gridData.value.length).toFixed(1)
+})
+
+const monthlyTables = computed(() => {
+  const now = new Date()
+  const currentMonth = now.getMonth()
+  const currentYear = now.getFullYear()
+
+  return gridData.value.filter((table) => {
+    if (!table.createdAt) return false
+    const date = new Date(table.createdAt)
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear
+  }).length
+})
+
+const canDelete = computed(() => {
+  if (deletePopup.value.currentVersion === 1 || deletePopup.value.currentVersion === 2) {
+    return true
+  }
+
+  if (deletePopup.value.currentVersion === 3) {
+    return (
+      deletePopup.value.confirmText === selectedTable.value?.tableName &&
+      deletePopup.value.backupCheck &&
+      deletePopup.value.riskCheck &&
+      deletePopup.value.finalCheck
+    )
+  }
+
+  return false
 })
 
 // Methods
 const loadData = async () => {
   try {
     loading.value = true
+    console.log('🔄 Loading tables...')
+
     const response = await apiService.getTablesDevExpress()
+    console.log('📊 API Response:', response)
 
-    if (response && response.data) {
-      gridData.value = response.data
-
-      // DataSource'u güncelle
-      dataSource.value = new ArrayStore({
-        key: 'id',
-        data: response.data,
-      })
-
-      // İstatistikleri hesapla
-      updateStats()
+    // Handle different response structures
+    let tableData = []
+    if (response?.data) {
+      if (Array.isArray(response.data)) {
+        tableData = response.data
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        tableData = response.data.data
+      } else if (response.data.results && Array.isArray(response.data.results)) {
+        tableData = response.data.results
+      }
     }
+
+    console.log('📋 Processed Table Data:', tableData)
+    gridData.value = tableData
+
+    console.log('✅ Data loaded successfully:', gridData.value.length, 'tables')
   } catch (error) {
-    console.error('Data loading error:', error)
-    toast.error('Veriler yüklenirken hata oluştu')
+    console.error('❌ Error loading data:', error)
+    toast.error('Tablolar yüklenirken hata oluştu')
+    gridData.value = []
   } finally {
     loading.value = false
   }
 }
 
-const updateStats = () => {
-  const now = new Date()
-  const currentMonth = now.getMonth()
-  const currentYear = now.getFullYear()
-
-  stats.value = {
-    totalTables: gridData.value.length,
-    totalRecords: 0,
-    tablesThisMonth: gridData.value.filter((table) => {
-      const createdDate = new Date(table.createdAt)
-      return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear
-    }).length,
-    activeTables: gridData.value.length,
+const refreshData = async () => {
+  refreshing.value = true
+  try {
+    await loadData()
+    toast.success('Veriler güncellendi')
+  } finally {
+    refreshing.value = false
   }
 }
 
-const refreshData = async () => {
-  await loadData()
-  toast.success('Veriler güncellendi')
+const exportGrid = () => {
+  if (gridRef.value?.instance) {
+    gridRef.value.instance.exportToExcel(false)
+  }
 }
 
-const createTable = () => {
-  router.push('/tables/new')
-}
+// Navigation
+const createTable = () => router.push('/tables/new')
+const viewTableData = (id: number) => router.push(`/tables/${id}/data`)
+const editTable = (id: number) => router.push(`/tables/${id}/edit`)
+const addTableData = (id: number) => router.push(`/tables/${id}/data?action=add`)
+const onRowClick = (e: any) => e.data?.id && viewTableData(e.data.id)
 
-const viewTableData = (tableId: number) => {
-  router.push(`/tables/${tableId}/data`)
-}
-
-const editTable = (tableId: number) => {
-  router.push(`/tables/${tableId}/edit`)
-}
-
-const addTableData = (tableId: number) => {
-  router.push(`/tables/${tableId}/data?action=add`)
-}
-
-const onRowClick = (e: any) => {
-  viewTableData(e.data.id)
-}
-
+// Delete Operations
 const confirmDelete = (table: TableListDto) => {
   selectedTable.value = table
-  deleteDialogVisible.value = true
+  resetDeletePopup()
+  deletePopup.value.visible = true
 }
 
-const deleteTable = async () => {
-  if (!selectedTable.value) return
+const resetDeletePopup = () => {
+  deletePopup.value.currentVersion = 1
+  deletePopup.value.version = deleteVersions[1]
+  deletePopup.value.confirmText = ''
+  deletePopup.value.backupCheck = false
+  deletePopup.value.riskCheck = false
+  deletePopup.value.finalCheck = false
+}
 
-  deleteLoading.value = true
+const upgradeVersion = () => {
+  if (deletePopup.value.currentVersion < 3) {
+    deletePopup.value.currentVersion++
+    deletePopup.value.version = deleteVersions[deletePopup.value.currentVersion]
+  }
+}
+
+const downgradeVersion = () => {
+  if (deletePopup.value.currentVersion > 1) {
+    deletePopup.value.currentVersion--
+    deletePopup.value.version = deleteVersions[deletePopup.value.currentVersion]
+  }
+}
+
+const cancelDelete = () => {
+  deletePopup.value.visible = false
+  selectedTable.value = null
+  resetDeletePopup()
+}
+
+const executeDelete = async () => {
+  if (!selectedTable.value || !canDelete.value) return
+
   try {
     await apiService.deleteTable(selectedTable.value.id)
     await loadData()
-    toast.success('Tablo başarıyla silindi')
-    deleteDialogVisible.value = false
-  } catch (error: any) {
-    console.error('Table deletion error:', error)
+
+    const message =
+      deletePopup.value.currentVersion === 3
+        ? '🔒 Güvenlik doğrulaması tamamlandı. Tablo silindi.'
+        : '🗑️ Tablo başarıyla silindi'
+
+    toast.success(message)
+    cancelDelete()
+  } catch (error) {
+    console.error('❌ Delete error:', error)
     toast.error('Tablo silinirken hata oluştu')
-  } finally {
-    deleteLoading.value = false
   }
 }
 
-// Style helper methods
+// Helper Functions
 const getCountBadgeClass = (count: number) => {
   if (count <= 3) return 'simple'
   if (count <= 6) return 'medium'
@@ -515,27 +666,64 @@ const getStatusIcon = (status: string) => {
   }
 }
 
+const formatDate = (dateStr: string | undefined) => {
+  if (!dateStr) return 'Bilinmiyor'
+  return new Date(dateStr).toLocaleDateString('tr-TR')
+}
+
 // Lifecycle
 onMounted(() => {
+  console.log('🚀 Dashboard mounted')
   loadData()
 })
 </script>
 
 <style scoped>
-.devexpress-dashboard {
+.dashboard-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #ffffff;
   padding: 20px;
 }
 
-/* Header Styles */
+/* Loading */
+.loading-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
+
+.loading-box {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  border: 1px solid #e9ecef;
+}
+
+.spinner {
+  font-size: 40px;
+  color: #007bff;
+  margin-bottom: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Header */
 .dashboard-header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 30px;
-  margin-bottom: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
 }
 
 .header-content {
@@ -544,73 +732,73 @@ onMounted(() => {
   align-items: center;
 }
 
-.header-left {
+.header-info {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
 .header-icon {
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 15px;
+  width: 48px;
+  height: 48px;
+  background: #007bff;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .header-text h1 {
   margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #2c3e50;
+  font-size: 24px;
+  font-weight: 600;
+  color: #212529;
 }
 
 .header-text p {
-  margin: 5px 0 0 0;
-  color: #7f8c8d;
+  margin: 4px 0 0 0;
+  color: #6c757d;
   font-size: 14px;
 }
 
-.header-actions {
+.header-buttons {
   display: flex;
-  gap: 15px;
+  gap: 12px;
 }
 
-/* Stats Container */
-.stats-container {
-  margin-bottom: 30px;
+/* Stats */
+.stats-section {
+  margin-bottom: 20px;
 }
 
-.stats-grid {
+.stats-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
+  gap: 16px;
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 15px;
-  padding: 25px;
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 20px;
   display: flex;
   align-items: center;
-  gap: 20px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
+  gap: 16px;
+  transition: transform 0.2s;
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .stat-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -618,20 +806,17 @@ onMounted(() => {
   color: white;
 }
 
-.total-tables .stat-icon {
-  background: linear-gradient(135deg, #3498db, #2980b9);
+.stat-card.blue .stat-icon {
+  background: #007bff;
 }
-
-.active-tables .stat-icon {
-  background: linear-gradient(135deg, #2ecc71, #27ae60);
+.stat-card.green .stat-icon {
+  background: #28a745;
 }
-
-.recent-tables .stat-icon {
-  background: linear-gradient(135deg, #f39c12, #e67e22);
+.stat-card.orange .stat-icon {
+  background: #fd7e14;
 }
-
-.total-columns .stat-icon {
-  background: linear-gradient(135deg, #9b59b6, #8e44ad);
+.stat-card.purple .stat-icon {
+  background: #6f42c1;
 }
 
 .stat-content {
@@ -639,49 +824,69 @@ onMounted(() => {
 }
 
 .stat-number {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
-  color: #2c3e50;
+  color: #212529;
   line-height: 1;
 }
 
 .stat-label {
   font-size: 14px;
-  color: #7f8c8d;
-  margin: 5px 0;
+  color: #6c757d;
+  margin: 4px 0;
 }
 
-.stat-trend {
+.stat-extra {
   font-size: 12px;
-  color: #27ae60;
-  font-weight: 600;
+  color: #28a745;
+  font-weight: 500;
 }
 
-/* Main Grid Container */
-.main-grid-container {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+/* Grid */
+.grid-section {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.grid-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.grid-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #212529;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.main-grid {
+  width: 100%;
+  min-width: 1200px;
 }
 
 /* Grid Styling */
 :deep(.dx-datagrid) {
-  border: none;
-  border-radius: 15px;
-  overflow: hidden;
-  font-family: 'Inter', sans-serif;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 :deep(.dx-datagrid-headers) {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-bottom: 2px solid #dee2e6;
-}
-
-:deep(.dx-datagrid-header-panel) {
   background: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid #e9ecef;
 }
 
 :deep(.dx-datagrid-rowsview .dx-row) {
@@ -689,11 +894,11 @@ onMounted(() => {
 }
 
 :deep(.dx-datagrid-rowsview .dx-row:hover) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+  background: #f8f9fa;
 }
 
 :deep(.dx-datagrid-rowsview .dx-row-alt) {
-  background: rgba(248, 249, 250, 0.5);
+  background: #fdfdfe;
 }
 
 /* Cell Templates */
@@ -701,73 +906,71 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 8px 0;
 }
 
 .table-icon {
   font-size: 18px;
+  opacity: 0.7;
 }
 
-.table-info {
+.table-details {
   flex: 1;
 }
 
 .table-title {
   font-weight: 600;
-  color: #2c3e50;
+  color: #212529;
   font-size: 14px;
+  margin-bottom: 2px;
 }
 
 .table-id {
   font-size: 11px;
-  color: #7f8c8d;
+  color: #6c757d;
 }
 
 .description-cell {
-  padding: 5px 0;
+  padding: 8px 0;
 }
 
 .description-text {
-  color: #5a6c7d;
+  color: #495057;
   font-size: 13px;
   line-height: 1.4;
 }
 
 .column-count-cell {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
+  justify-content: center;
 }
 
 .count-badge {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 20px;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 16px;
   font-size: 12px;
   font-weight: 600;
 }
 
 .count-badge.simple {
-  background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+  background: #fff3cd;
   color: #856404;
+  border: 1px solid #ffeaa7;
 }
 
 .count-badge.medium {
-  background: linear-gradient(135deg, #d4edda, #c3e6cb);
+  background: #d4edda;
   color: #155724;
+  border: 1px solid #c3e6cb;
 }
 
 .count-badge.complex {
-  background: linear-gradient(135deg, #cce5ff, #b3d9ff);
+  background: #cce5ff;
   color: #004085;
-}
-
-.count-label {
-  font-size: 10px;
-  color: #7f8c8d;
-  font-weight: 500;
+  border: 1px solid #b3d9ff;
 }
 
 .status-cell {
@@ -778,32 +981,38 @@ onMounted(() => {
 .status-badge {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  border-radius: 20px;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
   font-size: 11px;
   font-weight: 600;
 }
 
 .status-simple {
-  background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+  background: #fff3cd;
   color: #856404;
 }
 
 .status-medium {
-  background: linear-gradient(135deg, #d4edda, #c3e6cb);
+  background: #d4edda;
   color: #155724;
 }
 
 .status-complex {
-  background: linear-gradient(135deg, #cce5ff, #b3d9ff);
+  background: #cce5ff;
   color: #004085;
+}
+
+.status-default {
+  background: #f8f9fa;
+  color: #6c757d;
 }
 
 .actions-cell {
   display: flex;
-  gap: 5px;
+  gap: 4px;
   justify-content: center;
+  align-items: center;
 }
 
 .action-btn {
@@ -812,82 +1021,289 @@ onMounted(() => {
   height: 32px;
 }
 
-/* Delete Confirmation */
-.delete-confirmation {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* Delete Popup Styles */
+:deep(.dx-popup-content) {
+  padding: 0;
+}
+
+/* Version 1: Simple */
+.delete-v1 {
+  padding: 24px;
+}
+
+.delete-simple {
   text-align: center;
-  padding: 20px;
 }
 
 .delete-icon {
   font-size: 48px;
-  color: #e74c3c;
-  margin-bottom: 15px;
+  color: #dc3545;
+  margin-bottom: 16px;
 }
 
-.delete-message h3 {
-  margin: 0 0 10px 0;
-  color: #2c3e50;
+.delete-simple h3 {
+  margin: 0 0 12px 0;
+  color: #212529;
+  font-size: 18px;
 }
 
-.delete-message p {
-  margin: 0 0 15px 0;
-  color: #7f8c8d;
+.delete-simple p {
+  margin: 0;
+  color: #6c757d;
+  font-size: 14px;
 }
 
-.warning-text {
-  background: #fff3cd;
-  color: #856404;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 12px;
+/* Version 2: Detailed */
+.delete-v2 {
+  padding: 20px;
 }
 
-.delete-actions {
+.warning-header {
   display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  padding: 15px;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #dc3545;
+  margin-bottom: 16px;
 }
 
-/* Button Customizations */
-:deep(.create-btn .dx-button-content) {
-  background: linear-gradient(135deg, #2ecc71, #27ae60);
-  border: none;
-  border-radius: 10px;
-  padding: 12px 24px;
+.warning-header i {
+  font-size: 24px;
+  color: #dc3545;
 }
 
-:deep(.refresh-btn .dx-button-content) {
-  border: 2px solid #3498db;
-  border-radius: 10px;
-  padding: 12px 24px;
+.warning-header h3 {
+  margin: 0;
+  color: #212529;
+  font-size: 18px;
 }
 
-/* Responsive Design */
+.warning-box {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.warning-box h4 {
+  margin: 0 0 12px 0;
+  color: #721c24;
+  font-size: 14px;
+}
+
+.warning-box ul {
+  margin: 0;
+  padding-left: 16px;
+  color: #721c24;
+}
+
+.warning-box li {
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.table-info {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-item span {
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.info-item strong {
+  font-size: 14px;
+  color: #212529;
+}
+
+/* Version 3: Security */
+.delete-v3 {
+  padding: 24px;
+}
+
+.security-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #dc3545;
+  margin-bottom: 20px;
+}
+
+.security-header i {
+  font-size: 28px;
+  color: #dc3545;
+}
+
+.security-header h3 {
+  margin: 0;
+  color: #212529;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.danger-zone {
+  background: #f8d7da;
+  border: 2px solid #dc3545;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.danger-zone h4 {
+  margin: 0 0 8px 0;
+  color: #721c24;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.danger-zone p {
+  margin: 0;
+  color: #721c24;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.confirmation-input {
+  margin-bottom: 20px;
+}
+
+.confirmation-input label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #212529;
+  font-size: 13px;
+}
+
+.security-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+/* Popup Footer */
+.popup-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+}
+
+.version-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.main-controls {
+  display: flex;
+  gap: 8px;
+}
+
+/* Button Overrides */
+:deep(.dx-button) {
+  border-radius: 6px;
+}
+
+:deep(.dx-button.dx-button-success) {
+  background-color: #28a745;
+  border-color: #28a745;
+}
+
+:deep(.dx-button.dx-button-danger) {
+  background-color: #dc3545;
+  border-color: #dc3545;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-  .devexpress-dashboard {
-    padding: 10px;
+  .dashboard-container {
+    padding: 12px;
   }
 
   .header-content {
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
     text-align: center;
   }
 
-  .stats-grid {
+  .stats-cards {
     grid-template-columns: 1fr;
   }
 
-  .main-grid-container {
-    padding: 15px;
+  .grid-section {
+    padding: 16px;
   }
 
-  :deep(.dx-datagrid) {
-    font-size: 12px;
+  .grid-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .main-grid {
+    min-width: 800px;
+  }
+
+  .popup-footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .version-controls,
+  .main-controls {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-card {
+    padding: 16px;
+  }
+
+  .stat-number {
+    font-size: 24px;
+  }
+
+  .table-name-cell {
+    gap: 8px;
+  }
+
+  .table-title {
+    font-size: 13px;
+  }
+
+  .actions-cell {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .action-btn {
+    width: 100%;
+    min-width: auto;
+    height: 28px;
   }
 }
 </style>
