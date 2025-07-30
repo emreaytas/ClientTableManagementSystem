@@ -1,13 +1,11 @@
 <template>
   <div class="dashboard-container">
-    <!-- Loading State -->
     <div v-if="loading" class="loading-wrapper">
       <div class="loading-box">
         <div class="spinner">
           <i class="dx-icon-spinup"></i>
         </div>
-        <h3>Tablolar Yükleniyor...</h3>
-        <p>Lütfen bekleyin</p>
+        <h3>TABLOLAR YÜKLENİYOR</h3>
       </div>
     </div>
 
@@ -21,7 +19,7 @@
               <i class="dx-icon-chart"></i>
             </div>
             <div class="header-text">
-              <h1>Tablo Yönetim Paneli</h1>
+              <h1>TABLOLARINIZ</h1>
               <p>{{ gridData.length }} tablo • {{ totalColumns }} kolon</p>
             </div>
           </div>
@@ -45,62 +43,9 @@
         </div>
       </div>
 
-      <!-- Statistics Cards -->
-      <div class="stats-section">
-        <div class="stats-cards">
-          <div class="stat-card blue">
-            <div class="stat-icon">
-              <i class="dx-icon-folder"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-number">{{ gridData.length }}</div>
-              <div class="stat-label">Toplam Tablo</div>
-              <div class="stat-extra">{{ monthlyTables }} bu ay</div>
-            </div>
-          </div>
-
-          <div class="stat-card green">
-            <div class="stat-icon">
-              <i class="dx-icon-check"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-number">{{ gridData.length }}</div>
-              <div class="stat-label">Aktif Tablo</div>
-              <div class="stat-extra">%100 aktif</div>
-            </div>
-          </div>
-
-          <div class="stat-card orange">
-            <div class="stat-icon">
-              <i class="dx-icon-clock"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-number">{{ monthlyTables }}</div>
-              <div class="stat-label">Bu Ay Oluşturulan</div>
-              <div class="stat-extra">Son 30 gün</div>
-            </div>
-          </div>
-
-          <div class="stat-card purple">
-            <div class="stat-icon">
-              <i class="dx-icon-columnchooser"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-number">{{ totalColumns }}</div>
-              <div class="stat-label">Toplam Kolon</div>
-              <div class="stat-extra">{{ averageColumns }} ortalama</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Data Grid Section -->
       <div class="grid-section">
         <div class="grid-header">
-          <h2>
-            <i class="dx-icon-table"></i>
-            Tablo Listesi
-          </h2>
           <div class="grid-actions">
             <DxButton
               text="Excel Export"
@@ -193,14 +138,6 @@
             />
 
             <DxColumn
-              data-field="statusBadge"
-              caption="Durum"
-              :width="120"
-              alignment="center"
-              cell-template="statusTemplate"
-            />
-
-            <DxColumn
               caption="İşlemler"
               :width="200"
               :allow-sorting="false"
@@ -222,21 +159,13 @@
                 summary-type="sum"
                 display-format="Toplam kolon: {0}"
               />
-              <DxTotalItem
-                column="columnCount"
-                summary-type="avg"
-                display-format="Ortalama: {0} kolon/tablo"
-                :value-format="{ type: 'fixedPoint', precision: 1 }"
-              />
             </DxSummary>
 
-            <!-- Cell Templates -->
             <template #tableNameTemplate="{ data }">
               <div class="table-name-cell">
                 <div class="table-icon">📋</div>
                 <div class="table-details">
                   <div class="table-title">{{ data.tableName || 'İsimsiz Tablo' }}</div>
-                  <div class="table-id">ID: {{ data.id }}</div>
                 </div>
               </div>
             </template>
@@ -281,22 +210,6 @@
                   icon="edit"
                   styling-mode="text"
                   @click="editTable(data.id)"
-                  class="action-btn"
-                />
-                <DxButton
-                  hint="Veri Ekle"
-                  icon="plus"
-                  styling-mode="text"
-                  type="success"
-                  @click="addTableData(data.id)"
-                  class="action-btn"
-                />
-                <DxButton
-                  hint="Sil"
-                  icon="trash"
-                  styling-mode="text"
-                  type="danger"
-                  @click="confirmDelete(data)"
                   class="action-btn"
                 />
               </div>
@@ -584,6 +497,23 @@ const confirmDelete = (table: TableListDto) => {
   deletePopup.value.visible = true
 }
 
+const executeDelete = async () => {
+  if (!selectedTable.value) return
+
+  try {
+    console.log(`Deleting table with ID: ${selectedTable.value.id}`)
+    // await apiService.deleteTable(selectedTable.value.id);
+
+    toast.success(`'${selectedTable.value.tableName}' tablosu başarıyla silindi.`)
+
+    cancelDelete()
+    await loadData()
+  } catch (error) {
+    console.error('Error deleting table:', error)
+    toast.error('Tablo silinirken bir hata oluştu.')
+  }
+}
+
 const resetDeletePopup = () => {
   deletePopup.value.currentVersion = 1
   deletePopup.value.version = deleteVersions[1]
@@ -613,26 +543,6 @@ const cancelDelete = () => {
   resetDeletePopup()
 }
 
-const executeDelete = async () => {
-  if (!selectedTable.value || !canDelete.value) return
-
-  try {
-    await apiService.deleteTable(selectedTable.value.id)
-    await loadData()
-
-    const message =
-      deletePopup.value.currentVersion === 3
-        ? '🔒 Güvenlik doğrulaması tamamlandı. Tablo silindi.'
-        : '🗑️ Tablo başarıyla silindi'
-
-    toast.success(message)
-    cancelDelete()
-  } catch (error) {
-    console.error('❌ Delete error:', error)
-    toast.error('Tablo silinirken hata oluştu')
-  }
-}
-
 // Helper Functions
 const getCountBadgeClass = (count: number) => {
   if (count <= 3) return 'simple'
@@ -640,29 +550,31 @@ const getCountBadgeClass = (count: number) => {
   return 'complex'
 }
 
-const getStatusClass = (status: string) => {
-  switch (status) {
-    case 'Basit':
-      return 'status-simple'
-    case 'Orta':
+const getStatusClass = (status: string | undefined) => {
+  if (!status) return 'status-default'
+  switch (status.toLowerCase()) {
+    case 'active':
       return 'status-medium'
-    case 'Karmaşık':
+    case 'pending':
+      return 'status-simple'
+    case 'error':
       return 'status-complex'
     default:
       return 'status-default'
   }
 }
 
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case 'Basit':
+const getStatusIcon = (status: string | undefined) => {
+  if (!status) return 'dx-icon-question'
+  switch (status.toLowerCase()) {
+    case 'active':
       return 'dx-icon-check'
-    case 'Orta':
+    case 'pending':
       return 'dx-icon-clock'
-    case 'Karmaşık':
-      return 'dx-icon-warning'
+    case 'error':
+      return 'dx-icon-close'
     default:
-      return 'dx-icon-info'
+      return 'dx-icon-question'
   }
 }
 
