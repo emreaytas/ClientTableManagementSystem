@@ -3,21 +3,50 @@
     <!-- Header Section -->
     <v-row class="mb-4">
       <v-col cols="12">
-        <div class="d-flex align-center justify-space-between">
+        <div class="d-flex align-center justify-space-between flex-wrap">
           <div>
             <h1 class="text-h4 font-weight-bold">{{ tableInfo.tableName || 'Tablo Verileri' }}</h1>
             <p class="text-subtitle-1 text-grey-600 mt-1">
               {{ tableInfo.description || 'Tablo verilerini yönetin' }}
             </p>
           </div>
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-arrow-left"
-            variant="outlined"
-            @click="router.push('/dashboard')"
-          >
-            Dashboard'a Dön
-          </v-btn>
+
+          <!-- Button Group -->
+          <div class="d-flex ga-2 flex-wrap">
+            <!-- Dashboard Button -->
+            <v-btn
+              color="primary"
+              prepend-icon="mdi-arrow-left"
+              variant="outlined"
+              @click="router.push('/dashboard')"
+            >
+              Dashboard'a Dön
+            </v-btn>
+
+            <!-- Excel Export Button -->
+            <v-btn
+              color="green"
+              prepend-icon="mdi-file-excel"
+              variant="elevated"
+              @click="downloadExcel"
+              :loading="exporting.excel"
+              :disabled="loading || tableData.data.length === 0"
+            >
+              Excel İndir
+            </v-btn>
+
+            <!-- CSV Export Button -->
+            <v-btn
+              color="orange"
+              prepend-icon="mdi-file-delimited"
+              variant="elevated"
+              @click="downloadCSV"
+              :loading="exporting.csv"
+              :disabled="loading || tableData.data.length === 0"
+            >
+              CSV İndir
+            </v-btn>
+          </div>
         </div>
       </v-col>
     </v-row>
@@ -313,6 +342,143 @@ const dynamicHeaders = computed(() => {
   return headers
 })
 
+const exporting = ref({
+  excel: false,
+  csv: false,
+})
+
+const downloadExcel = async () => {
+  if (!tableId.value) {
+    toast.error('Tablo ID bulunamadı')
+    return
+  }
+
+  try {
+    exporting.value.excel = true
+    console.log('🟢 Starting Excel download for table:', tableId.value)
+
+    const baseURL = import.meta.env.VITE_API_URL || 'https://localhost:7018'
+    const fullURL = `${baseURL}/api/Excel/download/${tableId.value}`
+
+    const response = await fetch(fullURL, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const blob = await response.blob()
+    const properBlob = new Blob([blob], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+
+    const url = window.URL.createObjectURL(properBlob)
+
+    // Dosya adını belirle: Backend'den gelen veya tablo adı + tarih
+    const contentDisposition = response.headers.get('Content-Disposition')
+    let filename = `${tableData.value.tableName || 'tablo'}_${new Date().toISOString().split('T')[0]}.xlsx`
+
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1].replace(/['"]/g, '')
+      }
+    }
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    setTimeout(() => window.URL.revokeObjectURL(url), 100)
+
+    toast.success('Excel dosyası başarıyla indirildi!')
+    console.log('✅ Excel download completed:', filename)
+  } catch (error: any) {
+    console.error('❌ Excel download error:', error)
+    toast.error(`Excel indirme hatası: ${error.message}`)
+  } finally {
+    exporting.value.excel = false
+  }
+}
+
+const downloadCSV = async () => {
+  if (!tableId.value) {
+    toast.error('Tablo ID bulunamadı')
+    return
+  }
+
+  try {
+    exporting.value.csv = true
+    console.log('🟡 Starting CSV download for table:', tableId.value)
+
+    // Base URL'i doğru şekilde oluştur
+    const baseURL = import.meta.env.VITE_API_URL || 'https://localhost:7018'
+    const fullURL = `${baseURL}/api/Excel/download-csv/${tableId.value}`
+
+    console.log('📄 CSV download URL:', fullURL)
+
+    const response = await fetch(fullURL, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Accept: 'text/csv',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    // 🔥 ÖNEMLİ: CSV için doğru MIME type
+    const blob = await response.blob()
+    const properBlob = new Blob([blob], {
+      type: 'text/csv;charset=utf-8',
+    })
+
+    const url = window.URL.createObjectURL(properBlob)
+
+    // Backend'den dosya adını al
+    const contentDisposition = response.headers.get('Content-Disposition')
+    let filename = `${tableData.value.tableName || 'tablo'}_${new Date().toISOString().split('T')[0]}.csv`
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1].replace(/['"]/g, '')
+      }
+    }
+
+    // Download
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    // Cleanup
+    setTimeout(() => {
+      window.URL.revokeObjectURL(url)
+    }, 100)
+
+    toast.success('CSV dosyası başarıyla indirildi!')
+    console.log('✅ CSV download completed:', filename)
+  } catch (error: any) {
+    console.error('❌ CSV download error:', error)
+    toast.error(`CSV indirme hatası: ${error.message}`)
+  } finally {
+    exporting.value.csv = false
+  }
+}
 const filteredTableData = computed(() => {
   if (!search.value) return tableData.value.data
 

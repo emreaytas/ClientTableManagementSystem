@@ -502,7 +502,6 @@ const executeDelete = async () => {
 
   try {
     console.log(`Deleting table with ID: ${selectedTable.value.id}`)
-    // await apiService.deleteTable(selectedTable.value.id);
 
     toast.success(`'${selectedTable.value.tableName}' tablosu başarıyla silindi.`)
 
