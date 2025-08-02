@@ -317,13 +317,11 @@ const tableData = ref<TableData>({
   data: [],
 })
 
-// Form Data - Column ID bazlı (UI için)
 const formData = ref<Record<number, any>>({})
 const editingItem = ref<TableRowData | null>(null)
 const deleteItem = ref<TableRowData | null>(null)
 const formRef = ref<any>(null)
 
-// Computed Properties
 const dynamicHeaders = computed(() => {
   const headers = tableData.value.columns.map((column) => ({
     title: column.columnName,
@@ -438,7 +436,6 @@ const downloadCSV = async () => {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    // 🔥 ÖNEMLİ: CSV için doğru MIME type
     const blob = await response.blob()
     const properBlob = new Blob([blob], {
       type: 'text/csv;charset=utf-8',
