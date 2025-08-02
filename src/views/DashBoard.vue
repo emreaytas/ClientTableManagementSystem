@@ -55,8 +55,22 @@
             />
           </div>
         </div>
-
         <div class="grid-container">
+          <!-- Debug için gridData'yı göster -->
+          <div v-if="gridData.length === 0" style="padding: 20px; text-align: center; color: #666">
+            <p>Henüz tablo bulunamadı veya veriler yükleniyor...</p>
+            <p>GridData length: {{ gridData.length }}</p>
+          </div>
+
+          <div
+            v-else
+            style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px"
+          >
+            <small>Debug: {{ gridData.length }} tablo yüklendi</small>
+            <br />
+            <small>İlk tablo: {{ gridData[0]?.tableName || 'N/A' }}</small>
+          </div>
+
           <DxDataGrid
             ref="gridRef"
             :data-source="gridData"
@@ -68,6 +82,8 @@
             key-expr="id"
             @row-click="onRowClick"
             class="main-grid"
+            :remote-operations="false"
+            :cache-enabled="false"
           >
             <!-- Grid Features -->
             <DxLoadPanel :enabled="false" />
@@ -97,7 +113,7 @@
             <DxExport :enabled="true" :allow-export-selected-data="true" file-name="tablolar" />
             <DxSorting mode="multiple" />
 
-            <!-- Columns -->
+            <!-- Columns - Basit versiyonları -->
             <DxColumn
               data-field="id"
               caption="ID"
@@ -106,19 +122,9 @@
               data-type="number"
             />
 
-            <DxColumn
-              data-field="tableName"
-              caption="Tablo Adı"
-              :width="250"
-              cell-template="tableNameTemplate"
-            />
+            <DxColumn data-field="tableName" caption="Tablo Adı" :width="250" />
 
-            <DxColumn
-              data-field="description"
-              caption="Açıklama"
-              :width="300"
-              cell-template="descriptionTemplate"
-            />
+            <DxColumn data-field="description" caption="Açıklama" :width="300" />
 
             <DxColumn
               data-field="columnCount"
@@ -126,7 +132,6 @@
               :width="140"
               alignment="center"
               data-type="number"
-              cell-template="columnCountTemplate"
             />
 
             <DxColumn
@@ -161,41 +166,7 @@
               />
             </DxSummary>
 
-            <template #tableNameTemplate="{ data }">
-              <div class="table-name-cell">
-                <div class="table-icon">📋</div>
-                <div class="table-details">
-                  <div class="table-title">{{ data.tableName || 'İsimsiz Tablo' }}</div>
-                </div>
-              </div>
-            </template>
-
-            <template #descriptionTemplate="{ data }">
-              <div class="description-cell">
-                <span class="description-text">
-                  {{ data.description || 'Açıklama yok' }}
-                </span>
-              </div>
-            </template>
-
-            <template #columnCountTemplate="{ data }">
-              <div class="column-count-cell">
-                <div class="count-badge" :class="getCountBadgeClass(data.columnCount || 0)">
-                  <i class="dx-icon-columnchooser"></i>
-                  {{ data.columnCount || 0 }}
-                </div>
-              </div>
-            </template>
-
-            <template #statusTemplate="{ data }">
-              <div class="status-cell">
-                <div class="status-badge" :class="getStatusClass(data.statusBadge)">
-                  <i :class="getStatusIcon(data.statusBadge)"></i>
-                  {{ data.statusBadge || 'Bilinmiyor' }}
-                </div>
-              </div>
-            </template>
-
+            <!-- Sadece actions template'i kullan, diğerleri sonra eklenecek -->
             <template #actionsTemplate="{ data }">
               <div class="actions-cell">
                 <DxButton
@@ -364,76 +335,39 @@ import { DxButton } from 'devextreme-vue/button'
 import { DxPopup } from 'devextreme-vue/popup'
 import { DxTextBox } from 'devextreme-vue/text-box'
 import { DxCheckBox } from 'devextreme-vue/check-box'
-import { apiService, type TableListDto } from '@/services/api'
+import { apiService } from '@/services/api'
+
+// API'den gelen veri tipini tanımlayın
+interface TableItem {
+  id: number
+  tableName: string
+  description: string
+  columnCount: number
+  createdAt: string
+  updatedAt?: string
+  formattedDate?: string
+  statusBadge?: string
+  statusColor?: string
+  columns?: any[]
+}
 
 // Router & Toast
 const router = useRouter()
 const toast = useToast()
 
-// State
+// State - Doğru tip tanımlaması
 const loading = ref(true)
 const refreshing = ref(false)
-const gridData = ref<TableListDto[]>([])
+const gridData = ref<TableItem[]>([]) // Tip belirtildi
 const gridRef = ref()
-const selectedTable = ref<TableListDto | null>(null)
-
-// Delete Popup State
-const deleteVersions = {
-  1: { width: 400, height: 250, title: 'Tablo Sil' },
-  2: { width: 500, height: 350, title: 'Tablo Silme Onayı' },
-  3: { width: 600, height: 450, title: 'Güvenlik Doğrulaması' },
-}
-
-const deletePopup = ref({
-  visible: false,
-  currentVersion: 1,
-  version: deleteVersions[1],
-  confirmText: '',
-  backupCheck: false,
-  riskCheck: false,
-  finalCheck: false,
-})
+const selectedTable = ref<TableItem | null>(null) // Tip belirtildi
 
 // Computed Properties
 const totalColumns = computed(() => {
   return gridData.value.reduce((sum, table) => sum + (table.columnCount || 0), 0)
 })
 
-const averageColumns = computed(() => {
-  if (gridData.value.length === 0) return '0.0'
-  return (totalColumns.value / gridData.value.length).toFixed(1)
-})
-
-const monthlyTables = computed(() => {
-  const now = new Date()
-  const currentMonth = now.getMonth()
-  const currentYear = now.getFullYear()
-
-  return gridData.value.filter((table) => {
-    if (!table.createdAt) return false
-    const date = new Date(table.createdAt)
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear
-  }).length
-})
-
-const canDelete = computed(() => {
-  if (deletePopup.value.currentVersion === 1 || deletePopup.value.currentVersion === 2) {
-    return true
-  }
-
-  if (deletePopup.value.currentVersion === 3) {
-    return (
-      deletePopup.value.confirmText === selectedTable.value?.tableName &&
-      deletePopup.value.backupCheck &&
-      deletePopup.value.riskCheck &&
-      deletePopup.value.finalCheck
-    )
-  }
-
-  return false
-})
-
-// Methods
+// Düzeltilmiş loadData fonksiyonu
 const loadData = async () => {
   try {
     loading.value = true
@@ -442,22 +376,47 @@ const loadData = async () => {
     const response = await apiService.getTablesDevExpress()
     console.log('📊 API Response:', response)
 
-    // Handle different response structures
-    let tableData = []
-    if (response?.data) {
-      if (Array.isArray(response.data)) {
-        tableData = response.data
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        tableData = response.data.data
-      } else if (response.data.results && Array.isArray(response.data.results)) {
-        tableData = response.data.results
-      }
+    // API yanıtını işle
+    let tableData: TableItem[] = []
+
+    if (response && response.data && Array.isArray(response.data)) {
+      tableData = response.data
+    } else if (response && Array.isArray(response)) {
+      tableData = response
+    } else {
+      console.warn('⚠️ Unexpected API response structure:', response)
+      tableData = []
     }
 
     console.log('📋 Processed Table Data:', tableData)
-    gridData.value = tableData
 
-    console.log('✅ Data loaded successfully:', gridData.value.length, 'tables')
+    // Veri doğrulaması
+    if (tableData.length > 0) {
+      const firstTable = tableData[0]
+      console.log('🔍 First table validation:')
+      console.log('- Has ID:', !!firstTable.id)
+      console.log('- Has tableName:', !!firstTable.tableName)
+      console.log('- Has description:', !!firstTable.description)
+      console.log('- Has columnCount:', !!firstTable.columnCount)
+
+      // Eksik alanları kontrol et
+      tableData.forEach((table, index) => {
+        if (!table.id) console.warn(`Table ${index} missing ID`)
+        if (!table.tableName) console.warn(`Table ${index} missing tableName`)
+      })
+    }
+
+    // GridData'ya ata - reactive güncelleme için
+    gridData.value = [...tableData] // Spread operator ile yeni referans
+
+    console.log('✅ GridData updated:', gridData.value.length, 'tables')
+    console.log('✅ GridData content:', gridData.value)
+
+    // Grid'i manuel refresh et
+    if (gridRef.value?.instance) {
+      console.log('🔄 Refreshing grid instance...')
+      gridRef.value.instance.refresh()
+    }
   } catch (error) {
     console.error('❌ Error loading data:', error)
     toast.error('Tablolar yüklenirken hata oluştu')
@@ -467,6 +426,14 @@ const loadData = async () => {
   }
 }
 
+// Delete işlemleri için tip güncellemesi
+const confirmDelete = (table: TableItem) => {
+  selectedTable.value = table
+  resetDeletePopup()
+  deletePopup.value.visible = true
+}
+
+// Diğer fonksiyonlar aynı kalacak...
 const refreshData = async () => {
   refreshing.value = true
   try {
@@ -487,24 +454,32 @@ const exportGrid = () => {
 const createTable = () => router.push('/tables/new')
 const viewTableData = (id: number) => router.push(`/tables/${id}/data`)
 const editTable = (id: number) => router.push(`/tables/${id}/edit`)
-const addTableData = (id: number) => router.push(`/tables/${id}/data?action=add`)
 const onRowClick = (e: any) => e.data?.id && viewTableData(e.data.id)
 
-// Delete Operations
-const confirmDelete = (table: TableListDto) => {
-  selectedTable.value = table
-  resetDeletePopup()
-  deletePopup.value.visible = true
+// Delete Popup State (aynı kalıyor)
+const deleteVersions = {
+  1: { width: 400, height: 250, title: 'Tablo Sil' },
+  2: { width: 500, height: 350, title: 'Tablo Silme Onayı' },
+  3: { width: 600, height: 450, title: 'Güvenlik Doğrulaması' },
 }
 
+const deletePopup = ref({
+  visible: false,
+  currentVersion: 1,
+  version: deleteVersions[1],
+  confirmText: '',
+  backupCheck: false,
+  riskCheck: false,
+  finalCheck: false,
+})
+
+// Delete operations (tip güncellemeleri ile)
 const executeDelete = async () => {
   if (!selectedTable.value) return
 
   try {
     console.log(`Deleting table with ID: ${selectedTable.value.id}`)
-
     toast.success(`'${selectedTable.value.tableName}' tablosu başarıyla silindi.`)
-
     cancelDelete()
     await loadData()
   } catch (error) {
@@ -541,6 +516,23 @@ const cancelDelete = () => {
   selectedTable.value = null
   resetDeletePopup()
 }
+
+const canDelete = computed(() => {
+  if (deletePopup.value.currentVersion === 1 || deletePopup.value.currentVersion === 2) {
+    return true
+  }
+
+  if (deletePopup.value.currentVersion === 3) {
+    return (
+      deletePopup.value.confirmText === selectedTable.value?.tableName &&
+      deletePopup.value.backupCheck &&
+      deletePopup.value.riskCheck &&
+      deletePopup.value.finalCheck
+    )
+  }
+
+  return false
+})
 
 // Helper Functions
 const getCountBadgeClass = (count: number) => {
@@ -583,9 +575,18 @@ const formatDate = (dateStr: string | undefined) => {
 }
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
   console.log('🚀 Dashboard mounted')
-  loadData()
+  await loadData()
+
+  // Grid yüklendikten sonra kontrol
+  setTimeout(() => {
+    console.log('🎯 Final check - gridData.value:', gridData.value)
+    if (gridRef.value?.instance) {
+      console.log('🎯 Grid instance options:', gridRef.value.instance.option())
+      console.log('🎯 Grid dataSource:', gridRef.value.instance.option('dataSource'))
+    }
+  }, 1000)
 })
 </script>
 

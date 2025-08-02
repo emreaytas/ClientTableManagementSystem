@@ -207,7 +207,6 @@ apiClient.interceptors.request.use(
   },
 )
 
-// Response interceptor - Hata yönetimi
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -236,8 +235,7 @@ class ApiService {
     }
   }
 
-  // DevExpress endpoint (grid view için)
-  async getTablesDevExpress(): Promise<any> {
+  async getTablesDevExpress(): Promise<ApiTable[]> {
     try {
       const response = await apiClient.get('/Tables')
       return response.data
