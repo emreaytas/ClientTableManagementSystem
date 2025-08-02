@@ -166,22 +166,21 @@
               />
             </DxSummary>
 
-            <!-- Sadece actions template'i kullan, diğerleri sonra eklenecek -->
             <template #actionsTemplate="{ data }">
-              <div class="actions-cell">
+              <div class="actions-cell" @click.stop.prevent>
                 <DxButton
                   hint="Verileri Görüntüle"
                   icon="detailslayout"
                   styling-mode="text"
-                  @click="viewTableData(data.id)"
                   class="action-btn"
+                  :on-click="handleViewClick(data)"
                 />
                 <DxButton
                   hint="Düzenle"
                   icon="edit"
                   styling-mode="text"
-                  @click="editTable(data.id)"
                   class="action-btn"
+                  :on-click="handleEditClick(data)"
                 />
               </div>
             </template>
@@ -240,7 +239,6 @@
           </div>
         </div>
 
-        <!-- Version 3: Security -->
         <div v-else-if="deletePopup.currentVersion === 3" class="delete-v3">
           <div class="delete-security">
             <div class="security-header">
@@ -351,6 +349,52 @@ interface TableItem {
   columns?: any[]
 }
 
+const handleViewClick = (data: any) => {
+  return (e: any) => {
+    console.log('🎯 DxButton view clicked', data)
+
+    // Event propagation'ı durdur
+    if (e?.event) {
+      e.event.stopPropagation()
+      e.event.preventDefault()
+    }
+
+    if (!data?.id) {
+      toast.error('Tablo ID bulunamadı')
+      return
+    }
+
+    const id = Number(data.id)
+    router.push(`/tables/${id}/data`).catch((error) => {
+      console.error('Navigation error:', error)
+      window.location.href = `/tables/${id}/data`
+    })
+  }
+}
+
+const handleEditClick = (data: any) => {
+  return (e: any) => {
+    console.log('🎯 DxButton edit clicked', data)
+
+    // Event propagation'ı durdur
+    if (e?.event) {
+      e.event.stopPropagation()
+      e.event.preventDefault()
+    }
+
+    if (!data?.id) {
+      toast.error('Tablo ID bulunamadı')
+      return
+    }
+
+    const id = Number(data.id)
+    router.push(`/tables/${id}/edit`).catch((error) => {
+      console.error('Navigation error:', error)
+      window.location.href = `/tables/${id}/edit`
+    })
+  }
+}
+
 // Router & Toast
 const router = useRouter()
 const toast = useToast()
@@ -426,13 +470,6 @@ const loadData = async () => {
   }
 }
 
-// Delete işlemleri için tip güncellemesi
-const confirmDelete = (table: TableItem) => {
-  selectedTable.value = table
-  resetDeletePopup()
-  deletePopup.value.visible = true
-}
-
 // Diğer fonksiyonlar aynı kalacak...
 const refreshData = async () => {
   refreshing.value = true
@@ -452,10 +489,29 @@ const exportGrid = () => {
 
 // Navigation
 const createTable = () => router.push('/tables/new')
-const viewTableData = (id: number) => router.push(`/tables/${id}/data`)
-const editTable = (id: number) => router.push(`/tables/${id}/edit`)
-const onRowClick = (e: any) => e.data?.id && viewTableData(e.data.id)
+// const viewTableData = (id: number) => router.push(`/tables/${id}/data`)
+// const editTable = (id: number) => router.push(`/tables/${id}/edit`)
 
+const onRowClick = (e: any) => {
+  const target = e.event?.target as HTMLElement
+
+  // Button veya actions cell'e tıklanmışsa row navigation'ı engelle
+  if (
+    target?.closest('.actions-cell') ||
+    target?.closest('.dx-button') ||
+    target?.classList?.contains('action-btn') ||
+    target?.closest('.action-btn')
+  ) {
+    console.log('🎯 Button area clicked - preventing row navigation')
+    return // Row click'i engelle
+  }
+
+  // Normal row click - sadece data alanlarında
+  if (e.data?.id) {
+    console.log('🎯 Row clicked - navigating to view')
+    handleViewClick(e.data)()
+  }
+}
 // Delete Popup State (aynı kalıyor)
 const deleteVersions = {
   1: { width: 400, height: 250, title: 'Tablo Sil' },
