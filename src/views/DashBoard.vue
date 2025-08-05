@@ -56,21 +56,6 @@
           </div>
         </div>
         <div class="grid-container">
-          <!-- Debug için gridData'yı göster -->
-          <div v-if="gridData.length === 0" style="padding: 20px; text-align: center; color: #666">
-            <p>Henüz tablo bulunamadı veya veriler yükleniyor...</p>
-            <p>GridData length: {{ gridData.length }}</p>
-          </div>
-
-          <div
-            v-else
-            style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px"
-          >
-            <small>Debug: {{ gridData.length }} tablo yüklendi</small>
-            <br />
-            <small>İlk tablo: {{ gridData[0]?.tableName || 'N/A' }}</small>
-          </div>
-
           <DxDataGrid
             ref="gridRef"
             :data-source="gridData"
